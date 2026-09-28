@@ -1,0 +1,241 @@
+/* Цвета — те же, что в src/game/palette.ts */
+:root {
+  --ink: #1d2340;
+  --ink-soft: #4a5173;
+  --cream: #fff7ea;
+  --paper: #fffdf8;
+  --star: #ffd23f;
+  --coral: #ff5a5f;
+  --teal: #2ec4b6;
+  --sky: #6fb8ff;
+  --bad: #ff2d2d;
+  --radius: 22px;
+  --shadow: 0 6px 0 var(--ink);
+  --font-head: 'Unbounded', system-ui, sans-serif;
+  --font-body: 'Onest', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; }
+body {
+  background: #ffe3bf;
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { position: fixed; inset: 0; }
+.game-canvas { position: absolute !important; inset: 0; }
+
+/* ---------- Карточки и экраны ---------- */
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  padding: 16px;
+}
+.screen--dim { background: rgba(29, 35, 64, 0.35); backdrop-filter: blur(3px); }
+.screen--start { background: linear-gradient(180deg, rgba(111,184,255,0.25), rgba(255,227,191,0.1)); }
+
+.card {
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 32px;
+  max-width: 560px;
+  width: 100%;
+}
+.card--hero { max-width: 600px; }
+.card--results { max-width: 760px; }
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.title {
+  margin: 0 0 12px;
+  font-family: var(--font-head); font-weight: 800; font-size: clamp(48px, 9vw, 88px); line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+.title--small { font-size: clamp(30px, 5vw, 44px); }
+.lead { margin: 0 0 22px; font-size: 18px; line-height: 1.5; color: var(--ink-soft); }
+.fine { margin: 14px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-soft); }
+
+.big-btn {
+  font: 700 20px var(--font-head);
+  color: var(--ink);
+  background: var(--star);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 5px 0 var(--ink);
+  padding: 16px 30px;
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.big-btn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 var(--ink); }
+.big-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+
+.dev-btn {
+  display: block; margin-top: 16px;
+  background: none; border: 1px dashed var(--ink-soft); border-radius: 8px;
+  color: var(--ink-soft); padding: 6px 10px; font: 13px var(--font-body); cursor: pointer;
+}
+
+.how {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  list-style: none; margin: 0; padding: 0; max-width: 760px;
+}
+.how li {
+  background: rgba(255, 253, 248, 0.9); border: 2px solid var(--ink); border-radius: 999px;
+  padding: 6px 14px; font-size: 14px;
+}
+
+.loading { display: flex; align-items: center; gap: 12px; font-size: 17px; }
+.spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 3px solid var(--ink); border-top-color: var(--star);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-box p {
+  background: #ffe9e9; border: 2px solid var(--coral); border-radius: 14px;
+  padding: 12px 14px; margin: 0 0 16px; line-height: 1.45;
+}
+
+.row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 22px; }
+
+/* ---------- Кнопки с удержанием ---------- */
+.dwell-btn {
+  --dwell: 0;
+  position: relative; overflow: hidden;
+  font: 700 18px var(--font-head);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 5px 0 var(--ink);
+  padding: 16px 28px;
+  cursor: pointer;
+  background: var(--star);
+}
+.dwell-btn--ghost { background: var(--paper); }
+.dwell-btn.is-hover { transform: translateY(-2px) scale(1.03); }
+.dwell-btn__ring {
+  position: absolute; inset: 0;
+  background: var(--teal);
+  transform-origin: left center;
+  transform: scaleX(var(--dwell));
+  opacity: 0.55;
+}
+.dwell-btn__label { position: relative; }
+
+.hand-cursor {
+  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
+  width: 34px; height: 34px; margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  border: 4px solid var(--ink);
+  background: rgba(255, 210, 63, 0.85);
+  box-shadow: 0 0 0 4px rgba(255, 253, 248, 0.8);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* ---------- Обучение ---------- */
+.tutorial {
+  position: absolute; left: 50%; top: 20px; transform: translateX(-50%);
+  width: min(560px, calc(100% - 32px));
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.card--tutorial { padding: 20px 26px; }
+.tutorial__title { margin: 0 0 6px; font: 800 28px var(--font-head); }
+.tutorial__text { margin: 0 0 14px; font-size: 17px; line-height: 1.45; color: var(--ink-soft); }
+.steps { display: flex; gap: 6px; margin-bottom: 12px; }
+.steps__dot { width: 28px; height: 8px; border-radius: 99px; background: #e8e1d4; border: 2px solid var(--ink); }
+.steps__dot.is-active { background: var(--star); }
+.steps__dot.is-done { background: var(--teal); }
+.bar { height: 14px; border: 3px solid var(--ink); border-radius: 99px; overflow: hidden; background: #efe8da; }
+.bar__fill { height: 100%; background: var(--teal); transition: width 0.12s; }
+.tutorial__skip .dwell-btn { font-size: 14px; padding: 10px 18px; box-shadow: 0 3px 0 var(--ink); }
+
+/* ---------- Отсчёт ---------- */
+.countdown {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  font: 800 clamp(90px, 18vw, 180px) var(--font-head);
+  color: var(--star);
+  -webkit-text-stroke: 6px var(--ink);
+  paint-order: stroke fill;
+  animation: pop 0.8s ease-out;
+}
+@keyframes pop { 0% { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } 100% { opacity: 0.85; } }
+
+/* ---------- HUD ---------- */
+.hud { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; gap: 10px; align-items: flex-start; pointer-events: none; }
+.hud__pill {
+  display: flex; align-items: baseline; gap: 6px;
+  background: var(--paper); border: 3px solid var(--ink); border-radius: 999px; box-shadow: 0 4px 0 var(--ink);
+  padding: 8px 18px; font: 800 24px var(--font-head);
+}
+.hud__star { color: var(--star); -webkit-text-stroke: 2px var(--ink); }
+.hud__dim { color: var(--ink-soft); font-size: 18px; }
+.hud__legend { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 420px; }
+.hud__legend span {
+  background: rgba(255, 253, 248, 0.85); border: 2px solid var(--ink); border-radius: 999px;
+  padding: 3px 10px; font-size: 13px;
+}
+
+/* ---------- Мини-окно камеры ---------- */
+.cam-preview {
+  position: absolute; left: 16px; bottom: 16px;
+  background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink);
+  padding: 6px; overflow: hidden;
+}
+.cam-preview canvas { display: block; width: 256px; height: 192px; border-radius: 12px; background: var(--ink); }
+.cam-preview__labels { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 2px 2px; max-width: 256px; }
+.tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; color: #fff; }
+.tag--right { background: var(--coral); }
+.tag--left { background: var(--teal); }
+.cam-preview__fps { font-size: 11px; color: var(--ink-soft); margin-left: auto; align-self: center; }
+
+/* ---------- Подсказки «режима ошибки» ---------- */
+.hints {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  width: min(620px, calc(100% - 320px)); pointer-events: none;
+}
+.hint {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--paper); border: 3px solid var(--ink); border-left-width: 10px; border-radius: 16px;
+  box-shadow: 0 4px 0 var(--ink);
+  padding: 10px 16px; font-size: 17px; font-weight: 600; line-height: 1.35;
+  animation: hint-in 0.25s ease-out;
+}
+.hint--right { border-left-color: var(--coral); }
+.hint--left { border-left-color: var(--teal); }
+.hint--none { border-left-color: var(--star); }
+.hint__arrow { font: 800 26px var(--font-head); color: var(--coral); }
+@keyframes hint-in { from { transform: translateY(10px); opacity: 0; } }
+
+/* ---------- Итоги ---------- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0 18px; }
+.stats div { background: var(--cream); border: 2px solid var(--ink); border-radius: 14px; padding: 10px; text-align: center; }
+.stats b { display: block; font: 800 22px var(--font-head); }
+.stats span { font-size: 13px; color: var(--ink-soft); }
+.results__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.results__cols h3 { margin: 0 0 8px; font: 700 16px var(--font-head); }
+.errors { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.errors li { font-size: 15px; }
+.errors li span { display: block; color: var(--ink-soft); font-size: 14px; }
+.board { margin: 0; padding-left: 22px; font-size: 15px; }
+.board li { padding: 3px 0; }
+.board li span { display: inline-block; min-width: 150px; }
+.board li.is-me { font-weight: 700; color: var(--coral); }
+
+@media (max-width: 720px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .results__cols { grid-template-columns: 1fr; }
+  .cam-preview canvas { width: 160px; height: 120px; }
+  .hints { width: calc(100% - 32px); bottom: 190px; }
+  .hud__legend { display: none; }
+}
