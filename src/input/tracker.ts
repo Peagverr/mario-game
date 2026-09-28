@@ -17,9 +17,11 @@ const FACE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`
 
-/** Рабочая зона джойстика в размерах ладони: сдвиг на столько = полный ход. */
-const JOYSTICK_RANGE = 1.1
-const JOYSTICK_DEADZONE = 0.2
+/** Рабочая зона джойстика в размерах ладони: сдвиг на столько = полный ход (~4 см у взрослого). */
+const JOYSTICK_RANGE = 0.5
+/** Сдвиг меньше этой доли зоны не двигает героя — чтобы дрожание руки не считалось ходьбой. */
+const JOYSTICK_DEADZONE = 0.14
+control.joystick.deadzone = JOYSTICK_DEADZONE
 /** Поворот мира: провести щипком через весь кадр = столько радиан. */
 const GRAB_ROTATE_GAIN = Math.PI * 1.6
 const PAUSE_HOLD_MS = 1000
@@ -45,6 +47,7 @@ const s = {
   lastHandsAt: 0,
   lastFaceAt: 0,
   onlyLeftSince: 0,
+  lastRightAt: 0,
   frame: 0,
   lastFrameAt: 0,
   lastVideoTime: -1,
@@ -159,6 +162,11 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     if (!s.onlyLeftSince) s.onlyLeftSince = t
   } else s.onlyLeftSince = 0
 
+  // Правая рука появилась после перерыва — где она сейчас, там и центр джойстика.
+  if (next.right) {
+    if (t - s.lastRightAt > 800) s.joyCenter = { x: next.right.palm.x, y: next.right.palm.y }
+    s.lastRightAt = t
+  }
   applyJoystick(next.right)
   applyJump(next.right, t)
   applyGrab(next.left)
@@ -174,18 +182,32 @@ function shape(v: number) {
 
 let joystickReach = 0
 function applyJoystick(r: HandState | null) {
+  control.joystick.active = !!r
   if (!r) {
     control.move.x = 0
     control.move.y = 0
+    control.joystick.x = 0
+    control.joystick.y = 0
     joystickReach = 0
     return
   }
   const range = r.size * JOYSTICK_RANGE || 0.1
-  const dx = (r.palm.x - s.joyCenter.x) / range
-  const dy = (r.palm.y - s.joyCenter.y) / range
+  let dx = (r.palm.x - s.joyCenter.x) / range
+  let dy = (r.palm.y - s.joyCenter.y) / range
   joystickReach = Math.hypot(dx, dy)
+  // «Плавающий» центр, как у джойстиков в мобильных играх: увёл руку дальше края зоны —
+  // центр подтягивается следом, и возвращать руку издалека не нужно.
+  if (joystickReach > 1) {
+    const pull = (joystickReach - 1) / joystickReach
+    s.joyCenter.x += (r.palm.x - s.joyCenter.x) * pull
+    s.joyCenter.y += (r.palm.y - s.joyCenter.y) * pull
+    dx /= joystickReach
+    dy /= joystickReach
+  }
   control.move.x = shape(dx)
   control.move.y = shape(-dy)
+  control.joystick.x = dx
+  control.joystick.y = -dy
 }
 
 function applyJump(r: HandState | null, t: number) {

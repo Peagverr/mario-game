@@ -5,6 +5,7 @@ import { useGame } from './shared/gameStore'
 import { CameraPreview } from './ui/CameraPreview'
 import { HandCursor } from './ui/Dwell'
 import { Hints } from './ui/Hints'
+import { JoystickIndicator } from './ui/JoystickIndicator'
 import { Countdown, HUD, PauseMenu } from './ui/Overlays'
 import { Results } from './ui/Results'
 import { StartScreen } from './ui/StartScreen'
@@ -46,6 +47,7 @@ export function App() {
       {phase === 'results' && <Results />}
       {inGame && control.tracking.ready && <CameraPreview />}
       {inGame && <Hints />}
+      {(phase === 'playing' || phase === 'tutorial') && <JoystickIndicator />}
       {menu && <HandCursor />}
     </div>
   )
