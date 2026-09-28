@@ -21,6 +21,15 @@ const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`
 const JOYSTICK_RANGE = 0.5
 /** Сдвиг меньше этой доли зоны не двигает героя — чтобы дрожание руки не считалось ходьбой. */
 const JOYSTICK_DEADZONE = 0.14
+/** Вниз рука двигается хуже (мешают стол и локоть), поэтому вниз нужно меньшее движение. */
+const JOYSTICK_DOWN_GAIN = 1.6
+/**
+ * MediaPipe в этой версии называет руки правильно для нашего (не отзеркаленного) кадра.
+ * Если руки снова окажутся перепутаны — поменять на true.
+ */
+const SWAP_HANDEDNESS = false
+/** Сколько мс держать щипок, если левую руку на мгновение потеряли. */
+const GRAB_LOST_GRACE_MS = 250
 control.joystick.deadzone = JOYSTICK_DEADZONE
 /** Поворот мира: провести щипком через весь кадр = столько радиан. */
 const GRAB_ROTATE_GAIN = Math.PI * 1.6
@@ -134,14 +143,14 @@ const mirror = (p: { x: number; y: number; z: number }): Point => ({ x: 1 - p.x,
 
 function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t: number) {
   const aspect = video!.videoWidth / video!.videoHeight
-  const found: { side: 'left' | 'right'; points: Point[]; gesture: string }[] = []
+  const found: { side: 'left' | 'right'; points: Point[]; world: Point[]; gesture: string }[] = []
 
   res.landmarks.forEach((lm, i) => {
     const points = lm.map(mirror)
-    // MediaPipe считает, что кадр уже зеркальный; наш кадр — нет, поэтому метки перевёрнуты.
+    const world = (res.worldLandmarks[i] ?? []).map((p) => ({ x: -p.x, y: p.y, z: p.z }))
     const label = res.handedness[i]?.[0]?.categoryName
-    const side: 'left' | 'right' = label === 'Left' ? 'right' : 'left'
-    found.push({ side, points, gesture: res.gestures[i]?.[0]?.categoryName ?? 'None' })
+    const isRight = SWAP_HANDEDNESS ? label === 'Left' : label === 'Right'
+    found.push({ side: isRight ? 'right' : 'left', points, world, gesture: res.gestures[i]?.[0]?.categoryName ?? 'None' })
   })
   // Если две руки получили одинаковую метку — решаем по положению: правее на экране = правая.
   if (found.length === 2 && found[0].side === found[1].side) {
@@ -152,7 +161,7 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
   }
 
   const next: { left: HandState | null; right: HandState | null } = { left: null, right: null }
-  for (const f of found) next[f.side] = trackers[f.side].update(f.points, f.gesture, aspect, t)
+  for (const f of found) next[f.side] = trackers[f.side].update(f.points, f.world, f.gesture, aspect, t)
   if (!next.left) trackers.left.reset()
   if (!next.right) trackers.right.reset()
   control.hands.left = next.left
@@ -194,6 +203,7 @@ function applyJoystick(r: HandState | null) {
   const range = r.size * JOYSTICK_RANGE || 0.1
   let dx = (r.palm.x - s.joyCenter.x) / range
   let dy = (r.palm.y - s.joyCenter.y) / range
+  if (dy > 0) dy *= JOYSTICK_DOWN_GAIN
   joystickReach = Math.hypot(dx, dy)
   // «Плавающий» центр, как у джойстиков в мобильных играх: увёл руку дальше края зоны —
   // центр подтягивается следом, и возвращать руку издалека не нужно.
@@ -221,13 +231,18 @@ function applyJump(r: HandState | null, t: number) {
   s.wasFist = fist
 }
 
+let lastGrabAt = 0
 function applyGrab(l: HandState | null) {
+  const t = performance.now()
+  // Руку на мгновение потеряли посреди щипка — не бросаем мир, ждём.
+  if (!l && s.grab && t - lastGrabAt < GRAB_LOST_GRACE_MS) return
   const pinching = !!l?.pinching
   control.view.grabbing = pinching
   if (!l || !pinching) {
     s.grab = null
     return
   }
+  lastGrabAt = t
   const x = (l.points[4].x + l.points[8].x) / 2
   if (!s.grab) s.grab = { x, yaw: control.view.yaw, size: l.size, zoom: control.view.zoom }
   control.view.yaw = s.grab.yaw + (x - s.grab.x) * GRAB_ROTATE_GAIN
