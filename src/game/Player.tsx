@@ -2,7 +2,7 @@ import { Outlines } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import { useRef } from 'react'
-import { MathUtils, Vector3, type Group } from 'three'
+import { MathUtils, Vector3, type Group, type Mesh, type MeshBasicMaterial } from 'three'
 import { control } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 import { palette } from './palette'
@@ -18,6 +18,15 @@ const JUMP_VELOCITY = 9.2
 const JUMP_BUFFER_S = 0.25
 /** …или чуть позже схода с края («время койота»). */
 const COYOTE_S = 0.14
+/** Держишь кулак — после приземления герой прыгает снова через столько секунд. */
+const AUTO_REJUMP_DELAY_S = 0.12
+/** Разжал кулак, пока герой летит вверх, — прыжок обрывается (короткий прыжок, как в Марио)… */
+const JUMP_CUT = 0.5
+/** …но не раньше этого момента, чтобы короткий прыжок всё же был прыжком. */
+const MIN_JUMP_S = 0.1
+/** Кулак считается разжатым, только если не виден дольше этого (защита от мигания распознавания). */
+const RELEASE_GRACE_S = 0.08
+const SHADOW_RAY = 40
 
 const toFeet = HALF_HEIGHT + RADIUS
 const tmp = new Vector3()
@@ -40,7 +49,12 @@ export function Player({ spawn, killY }: Props) {
     facing: 0,
     minVy: 0,
     t: 0,
+    landedAt: 0,
+    jumpStartedAt: -1,
+    rising: false,
+    heldSeenAt: -1,
   })
+  const shadow = useRef<Mesh>(null)
 
   useFrame((_, dtRaw) => {
     const b = body.current
@@ -56,7 +70,7 @@ export function Player({ spawn, killY }: Props) {
 
     // — Земля под ногами: луч вниз —
     const ray = new rapier.Ray({ x: pos.x, y: pos.y, z: pos.z }, { x: 0, y: -1, z: 0 })
-    const hit = world.castRay(ray, toFeet + 0.12, true, undefined, undefined, undefined, b)
+    const hit = world.castRay(ray, toFeet + 0.12, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, b)
     s.grounded = !!hit && vel.y < 2.5
     let carry: Vector3 | undefined
     if (hit && s.grounded) {
@@ -68,6 +82,7 @@ export function Player({ spawn, killY }: Props) {
 
     // Приземление: сжатие, пыль, звук.
     if (s.grounded && !s.wasGrounded) {
+      s.landedAt = s.t
       if (s.minVy < -5) {
         s.squash = Math.min(1, -s.minVy / 14)
         burst(tmp.set(pos.x, pos.y - toFeet + 0.1, pos.z), palette.heroCream, 8, 2.5)
@@ -95,12 +110,28 @@ export function Player({ spawn, killY }: Props) {
       s.lastJumpSeq = control.jumpSeq
       if (canMove) s.jumpBufferedUntil = s.t + JUMP_BUFFER_S
     }
+    if (control.jumpHeld) s.heldSeenAt = s.t
+    const held = s.t - s.heldSeenAt < RELEASE_GRACE_S
+    // Кулак всё ещё сжат после приземления — прыгаем снова.
+    if (canMove && held && s.grounded && !s.rising && s.t - s.landedAt > AUTO_REJUMP_DELAY_S) {
+      s.jumpBufferedUntil = s.t + JUMP_BUFFER_S
+    }
     if (s.jumpBufferedUntil > s.t && s.t - s.lastGroundedAt < COYOTE_S) {
       vy = JUMP_VELOCITY
       s.jumpBufferedUntil = 0
       s.lastGroundedAt = -1
+      s.jumpStartedAt = s.t
+      s.rising = true
       s.squash = -0.6
       sfx.jump()
+    }
+    // Разжал кулак на взлёте — короткий прыжок.
+    if (s.rising) {
+      if (vy <= 0) s.rising = false
+      else if (!held && s.t - s.jumpStartedAt > MIN_JUMP_S) {
+        vy *= JUMP_CUT
+        s.rising = false
+      }
     }
     if (!canMove && phase !== 'paused') {
       vx *= 0.8
@@ -120,6 +151,19 @@ export function Player({ spawn, killY }: Props) {
     runtime.playerPos.set(pos.x, pos.y, pos.z)
     runtime.playerVel.set(vx, vy, vz)
 
+    // — Тень прямо под героем (как в Mario 64): видно, куда приземлишься —
+    const sh = shadow.current
+    if (sh) {
+      const down = world.castRay(ray, SHADOW_RAY, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, b)
+      sh.visible = !!down
+      if (down) {
+        const height = down.timeOfImpact - toFeet
+        sh.position.set(pos.x, pos.y - down.timeOfImpact + 0.03, pos.z)
+        sh.scale.setScalar(MathUtils.clamp(1 - height / 12, 0.45, 1))
+        ;(sh.material as MeshBasicMaterial).opacity = MathUtils.clamp(0.45 - height / 30, 0.18, 0.45)
+      }
+    }
+
     // — Внешний вид: поворот к направлению движения, сжатие/растяжение, «дыхание» —
     const v = visual.current
     if (v) {
@@ -137,6 +181,11 @@ export function Player({ spawn, killY }: Props) {
   })
 
   return (
+    <>
+    <mesh ref={shadow} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1}>
+      <circleGeometry args={[RADIUS * 1.15, 24]} />
+      <meshBasicMaterial color={palette.ink} transparent opacity={0.4} depthWrite={false} polygonOffset polygonOffsetFactor={-2} />
+    </mesh>
     <RigidBody
       ref={body}
       name="player"
@@ -152,6 +201,7 @@ export function Player({ spawn, killY }: Props) {
         <Hero />
       </group>
     </RigidBody>
+    </>
   )
 }
 

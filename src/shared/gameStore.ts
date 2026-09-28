@@ -72,8 +72,8 @@ export function runSeconds(s: Pick<GameState, 'startedAt' | 'finishedAt'>): numb
   return (end - s.startedAt) / 1000
 }
 
-/** Очки: звёзды важнее всего, быстрее — лучше, падения штрафуются. */
+/** Очки: звёзды важнее всего, быстрее — лучше, падение — небольшой штраф. */
 export function computeScore(stars: number, seconds: number, falls: number): number {
   const timeBonus = Math.max(0, Math.round((180 - seconds) * 5))
-  return Math.max(0, stars * 100 + timeBonus - falls * 50)
+  return Math.max(0, stars * 100 + timeBonus - falls * 20)
 }

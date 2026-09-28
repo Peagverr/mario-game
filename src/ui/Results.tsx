@@ -5,6 +5,8 @@ import { computeScore, runSeconds, useGame } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
 import { randomName, saveRecord } from './leaderboard'
 
+const savedRuns = new Map<number, { top: ReturnType<typeof saveRecord>['top']; place: number; name: string }>()
+
 /** «1 раз», «2 раза», «5 раз». */
 function times(n: number) {
   const d = n % 10
@@ -20,11 +22,15 @@ export function Results() {
   const seconds = runSeconds(g)
   const score = computeScore(g.starsCollected, seconds, g.falls)
 
-  // Сохраняем один раз при открытии экрана.
+  // Сохраняем результат забега ровно один раз, даже если экран отрисуется повторно.
   const { top, place, name } = useMemo(() => {
+    const saved = savedRuns.get(g.startedAt)
+    if (saved) return saved
     const name = randomName()
-    return { ...saveRecord({ name, score, stars: g.starsCollected, seconds, at: Date.now() }), name }
-  }, [])
+    const result = { ...saveRecord({ name, score, stars: g.starsCollected, seconds, at: Date.now() }), name }
+    savedRuns.set(g.startedAt, result)
+    return result
+  }, [g.startedAt])
 
   const errors = Object.entries(g.stats.errors) as [HintCode, number][]
   errors.sort((a, b) => b[1] - a[1])

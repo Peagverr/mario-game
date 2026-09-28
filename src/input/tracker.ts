@@ -190,6 +190,7 @@ function applyJoystick(r: HandState | null) {
 
 function applyJump(r: HandState | null, t: number) {
   const fist = !!r?.fist
+  control.jumpHeld = fist
   if (fist && !s.wasFist && t - s.lastJump > JUMP_COOLDOWN_MS) {
     control.jumpSeq++
     s.lastJump = t

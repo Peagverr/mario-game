@@ -19,7 +19,13 @@ export function enableDevKeyboard() {
     if (e.code === 'Space') control.jumpSeq++
     if (e.code === 'KeyP') control.pauseSeq++
   })
-  window.addEventListener('keyup', (e) => down.delete(e.code))
+  window.addEventListener('keyup', (e) => {
+    down.delete(e.code)
+    if (e.code === 'Space') control.jumpHeld = false
+  })
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') control.jumpHeld = true
+  })
 
   let last = performance.now()
   const tick = () => {
