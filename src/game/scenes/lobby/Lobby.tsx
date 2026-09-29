@@ -70,7 +70,8 @@ function Portal({ position, level, placeholder }: { position: [number, number, n
           onIntersectionEnter={({ other }) => {
             if (other.rigidBodyObject?.name !== 'player') return
             const g = useGame.getState()
-            if (g.phase !== 'playing') return
+            // Обучение тоже идёт в лобби — зашёл в портал во время обучения, значит, готов играть.
+            if (g.phase !== 'playing' && g.phase !== 'tutorial') return
             burst(new Vector3(position[0], 1.5, position[2]), color, 30, 6)
             sfx.confirm()
             g.goToScene(level.id)
