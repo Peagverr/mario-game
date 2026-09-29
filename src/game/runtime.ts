@@ -1,3 +1,4 @@
+import type { RapierRigidBody } from '@react-three/rapier'
 import { Vector3 } from 'three'
 
 /**
@@ -15,6 +16,8 @@ export const runtime = {
   movers: new Map<number, Vector3>(),
   /** Очередь всплесков частиц (сбор звезды, приземление). */
   bursts: [] as { pos: Vector3; color: string; count: number; speed: number }[],
+  /** Тело героя — чтобы лучи «видно ли звезду» не упирались в самого героя. */
+  playerBody: null as RapierRigidBody | null,
   /** Во сколько раз шире обзор в этой сцене (лобби показывает больше, уровни — ближе). */
   viewScale: 1,
   /** После возрождения герой стоит, пока игрок не сменит жест. */

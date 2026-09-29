@@ -34,6 +34,8 @@ export function HUD() {
   const sceneId = useGame((s) => s.sceneId)
   const stars = useGame((s) => s.starsCollected)
   const total = useGame((s) => s.starsTotal)
+  const secrets = useGame((s) => s.secretsFound)
+  const secretsTotal = useGame((s) => s.secretsTotal)
   const [time, setTime] = useState(0)
 
   useEffect(() => {
@@ -52,6 +54,12 @@ export function HUD() {
             <b>{stars}</b>
             <span className="hud__dim">/ {total}</span>
           </div>
+          {secretsTotal > 0 && (
+            <div className="hud__pill hud__pill--secret" key={secrets}>
+              тайные <b>{secrets}</b>
+              <span className="hud__dim">/ {secretsTotal}</span>
+            </div>
+          )}
           <div className="hud__pill hud__pill--time">{formatTime(time)}</div>
         </>
       )}

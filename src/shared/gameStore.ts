@@ -19,6 +19,9 @@ type GameState = {
   runId: number
   starsCollected: number
   starsTotal: number
+  /** Тайные звёзды (уровень «Загляни»): найдены взглядом / всего. */
+  secretsFound: number
+  secretsTotal: number
   startedAt: number
   finishedAt: number
   falls: number
@@ -27,6 +30,8 @@ type GameState = {
   setPhase: (phase: Phase) => void
   setStarsTotal: (n: number) => void
   collectStar: () => void
+  setSecretsTotal: (n: number) => void
+  findSecret: () => void
   addFall: () => void
   countJump: () => void
   countError: (code: HintCode) => void
@@ -39,7 +44,7 @@ type GameState = {
 
 const emptyStats = (): GestureStats => ({ jumps: 0, errors: {} })
 
-const freshRun = () => ({ starsCollected: 0, falls: 0, startedAt: 0, finishedAt: 0, stats: emptyStats() })
+const freshRun = () => ({ starsCollected: 0, secretsFound: 0, falls: 0, startedAt: 0, finishedAt: 0, stats: emptyStats() })
 
 export const useGame = create<GameState>((set) => ({
   phase: 'start',
@@ -47,6 +52,8 @@ export const useGame = create<GameState>((set) => ({
   runId: 0,
   starsCollected: 0,
   starsTotal: 0,
+  secretsFound: 0,
+  secretsTotal: 0,
   startedAt: 0,
   finishedAt: 0,
   falls: 0,
@@ -55,6 +62,8 @@ export const useGame = create<GameState>((set) => ({
   setPhase: (phase) => set({ phase }),
   setStarsTotal: (starsTotal) => set({ starsTotal }),
   collectStar: () => set((s) => ({ starsCollected: s.starsCollected + 1 })),
+  setSecretsTotal: (secretsTotal) => set({ secretsTotal }),
+  findSecret: () => set((s) => ({ secretsFound: s.secretsFound + 1 })),
   addFall: () => set((s) => ({ falls: s.falls + 1 })),
   countJump: () => set((s) => ({ stats: { ...s.stats, jumps: s.stats.jumps + 1 } })),
   countError: (code) =>
@@ -75,6 +84,7 @@ export const useGame = create<GameState>((set) => ({
       phase: sceneId === 'lobby' ? 'playing' : 'countdown',
       runId: s.runId + 1,
       starsTotal: 0,
+      secretsTotal: 0,
       ...freshRun(),
     })),
 }))

@@ -66,6 +66,7 @@ export function Player({ spawn, killY }: Props) {
   useFrame((_, dtRaw) => {
     const b = body.current
     if (!b) return
+    runtime.playerBody = b
     const dt = Math.min(dtRaw, 0.05)
     const s = st.current
     s.t += dt
