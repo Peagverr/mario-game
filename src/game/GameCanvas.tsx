@@ -18,7 +18,7 @@ export function GameCanvas() {
   const phase = useGame((s) => s.phase)
   const runId = useGame((s) => s.runId)
   const [quality, setQuality] = useState<'high' | 'low'>('high')
-  const [dpr, setDpr] = useState(1.5)
+  const [dpr, setDpr] = useState(1.25)
 
   return (
     <Canvas shadows dpr={dpr} gl={{ antialias: false, powerPreference: 'high-performance' }} className="game-canvas">
@@ -27,7 +27,7 @@ export function GameCanvas() {
           setDpr(1)
           setQuality('low')
         }}
-        onIncline={() => setDpr(1.5)}
+        onIncline={() => setDpr(1.25)}
       />
       <fog attach="fog" args={[palette.skyBottom, 60, 170]} />
       <WindowCamera />

@@ -63,7 +63,7 @@ const STEPS: Step[] = [
     id: 'head',
     title: 'Подвигай головой',
     text: 'Влево-вправо, вверх-вниз. Экран — окно: загляни в мир сбоку.',
-    check: (c) => Math.min(1, Math.abs(control.head.x - c.start.headX) / 0.08),
+    check: (c) => Math.min(1, Math.abs(control.head.x - c.start.headX) / 0.05),
   },
 ]
 

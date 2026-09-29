@@ -26,6 +26,7 @@ export type HintCode =
   | 'joystick-far'
   | 'wrong-hand'
   | 'no-hands'
+  | 'hand-turned'
 
 export type Hint = {
   code: HintCode
@@ -68,6 +69,8 @@ export const control = {
     ready: false,
     /** Кадров распознавания в секунду. */
     fps: 0,
+    /** Сколько мс в среднем уходит на распознавание одного кадра. */
+    inferMs: 0,
     /** Средняя яркость кадра 0..1. */
     brightness: 1,
     /** Видео с камеры (для мини-окна со скелетом). */

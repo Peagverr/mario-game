@@ -29,6 +29,7 @@ function debugLine() {
     r ? `пальцы ${r.curls.map((c) => (c === 'curled' ? '●' : c === 'half' ? '◐' : '○')).join('')}` : '',
     h.visible ? `голова x${(h.x * 100).toFixed(0)} y${(h.y * 100).toFixed(0)} z${(h.z * 100).toFixed(0)} см` : 'лицо —',
   ]
+  parts.push(`распозн. ${control.tracking.inferMs.toFixed(0)} мс`)
   return parts.filter(Boolean).join(' · ')
 }
 

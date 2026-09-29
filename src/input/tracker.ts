@@ -58,6 +58,9 @@ const s = {
   lastFaceAt: 0,
   onlyLeftSince: 0,
   lastRightAt: 0,
+  /** Когда левая рука пропала посреди щипка (скорее всего, повернулась ребром к камере). */
+  leftLostWhilePinchAt: 0,
+  wasLeftPinching: false,
   frame: 0,
   lastFrameAt: 0,
   lastVideoTime: -1,
@@ -79,9 +82,10 @@ async function createTasks() {
         baseOptions: { modelAssetPath: GESTURE_MODEL, delegate },
         runningMode: 'VIDEO',
         numHands: 2,
-        minHandDetectionConfidence: 0.6,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        // Пониже, чтобы уже найденная рука не терялась при повороте (ребром к камере её почти не видно).
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.35,
+        minTrackingConfidence: 0.35,
       }),
       FaceLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: FACE_MODEL, delegate },
@@ -128,10 +132,12 @@ function loop() {
   s.lastVideoTime = video.currentTime
 
   const t = performance.now()
+  const t0 = performance.now()
   const hands = recognizer.recognizeForVideo(video, t)
-  const faceRes = face.detectForVideo(video, t)
   processHands(hands, t)
-  processFace(faceRes, t)
+  // Лицо — через кадр: голова движется плавно, а руки важнее для отклика. Экономит ~40% времени распознавания.
+  if (s.frame % 2 === 0) processFace(face.detectForVideo(video, t), t)
+  control.tracking.inferMs += (performance.now() - t0 - control.tracking.inferMs) * 0.1
   if (s.frame++ % 15 === 0) measureBrightness(video)
   updateHints(t)
 
@@ -165,10 +171,13 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
   for (const f of found) next[f.side] = trackers[f.side].update(f.points, f.world, f.gesture, aspect, t)
   if (!next.left) trackers.left.reset()
   if (!next.right) trackers.right.reset()
+  if (!next.left && s.wasLeftPinching) s.leftLostWhilePinchAt = t
+  if (next.left) s.leftLostWhilePinchAt = 0
+  s.wasLeftPinching = !!next.left?.pinching
   control.hands.left = next.left
   control.hands.right = next.right
   if (next.left || next.right) s.lastHandsAt = t
-  if (next.left && !next.right && next.left.openPalm) {
+  if (next.left && !next.right && next.left.openPalm && !next.left.pinching) {
     if (!s.onlyLeftSince) s.onlyLeftSince = t
   } else s.onlyLeftSince = 0
 
@@ -322,6 +331,7 @@ function updateHints(t: number) {
     noHandsMs: t - s.lastHandsAt,
     noFaceMs: t - s.lastFaceAt,
     onlyLeftMs: s.onlyLeftSince ? t - s.onlyLeftSince : 0,
+    leftLostWhilePinchMs: s.leftLostWhilePinchAt ? t - s.leftLostWhilePinchAt : 0,
     wantsHands: active,
   })
   const { hints, appeared } = hintFilter.update(candidates, t)

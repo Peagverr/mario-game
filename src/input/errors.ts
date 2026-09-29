@@ -26,6 +26,8 @@ export type ErrorContext = {
   noFaceMs: number
   /** Сколько мс в кадре только левая раскрытая ладонь (без правой). */
   onlyLeftMs: number
+  /** Сколько мс назад левая рука пропала посреди щипка (0 — не пропадала). */
+  leftLostWhilePinchMs: number
   /** Нужны ли сейчас руки (идёт игра или обучение). */
   wantsHands: boolean
 }
@@ -75,6 +77,11 @@ export function detectCandidates(c: ErrorContext): Hint[] {
 
   if (c.noHandsMs > 1500) {
     out.push({ code: 'no-hands', hand: 'right', text: 'Подними правую ладонь перед камерой на уровне груди — это джойстик героя' })
+  }
+
+  // Рука пропала прямо во время щипка — почти всегда её повернули ребром: так камера ладонь не видит.
+  if (c.leftLostWhilePinchMs > 250 && c.leftLostWhilePinchMs < 4000) {
+    out.push({ code: 'hand-turned', hand: 'left', text: 'Боком камера руку не видит — поверни левую ладонь к камере, можно наискосок' })
   }
 
   if (c.onlyLeftMs > 1200) {
@@ -138,11 +145,12 @@ const HOLD_MS: Record<HintCode, number> = {
   'joystick-far': 700,
   'wrong-hand': 0,
   'no-hands': 0,
+  'hand-turned': 0,
 }
 
 /** Порядок важности: сначала то, без чего ничего не работает. */
 const PRIORITY: HintCode[] = [
-  'dark', 'no-face', 'too-close', 'too-far', 'no-hands', 'wrong-hand',
+  'dark', 'no-face', 'too-close', 'too-far', 'hand-turned', 'no-hands', 'wrong-hand',
   'hand-edge', 'fist-partial', 'pinch-partial', 'joystick-far', 'head-turned',
 ]
 
@@ -201,4 +209,5 @@ export const ERROR_ADVICE: Record<HintCode, { title: string; tip: string }> = {
   'too-far': { title: 'Слишком далеко', tip: 'Лучшее расстояние — 50–70 см от экрана.' },
   'head-turned': { title: 'Голова повёрнута', tip: 'Смотри на экран прямо — двигай головой, а не поворачивай её.' },
   dark: { title: 'Мало света', tip: 'Свет должен падать на лицо и руки, а не из-за спины.' },
+  'hand-turned': { title: 'Рука ребром к камере', tip: 'Держи ладонь к камере или наискосок — ребром её не видно.' },
 }
