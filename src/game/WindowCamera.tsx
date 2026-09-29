@@ -18,7 +18,7 @@ import { runtime } from './runtime'
 /** Предполагаемая ширина экрана ноутбука в метрах (14–15"). */
 const PHYSICAL_SCREEN_W = 0.31
 /** Ширина «окна» в единицах мира на уровне героя: сколько мира видно по горизонтали. */
-const WINDOW_W = 12
+const WINDOW_W = 14
 /** Наклон взгляда вниз. */
 const PITCH = MathUtils.degToRad(27)
 /** Пределы наклона щипком: чтобы не уйти под землю и не смотреть строго сверху. */
@@ -92,7 +92,7 @@ export function WindowCamera() {
     eye.z += (ez - eye.z) * k
 
     // 4) Асимметричная перспектива: края кадра всегда проходят через края «окна».
-    const windowW = WINDOW_W / control.view.zoom
+    const windowW = (WINDOW_W * runtime.viewScale) / control.view.zoom
     const scale = windowW / PHYSICAL_SCREEN_W // метры → единицы мира
     const halfW = windowW / 2
     const halfH = halfW / (size.width / size.height)

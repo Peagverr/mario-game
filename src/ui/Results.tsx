@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ERROR_ADVICE } from '../input/errors'
 import type { HintCode } from '../shared/controlState'
+import { levelInfo, nextLevel } from '../game/scenes'
 import { computeScore, runSeconds, useGame } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
 import { randomName, saveRecord } from './leaderboard'
@@ -27,21 +28,22 @@ export function Results() {
     const saved = savedRuns.get(g.startedAt)
     if (saved) return saved
     const name = randomName()
-    const result = { ...saveRecord({ name, score, stars: g.starsCollected, seconds, at: Date.now() }), name }
+    const result = { ...saveRecord(g.sceneId, { name, score, stars: g.starsCollected, seconds, at: Date.now() }), name }
     savedRuns.set(g.startedAt, result)
     return result
   }, [g.startedAt])
 
+  const next = nextLevel(g.sceneId)
   const errors = Object.entries(g.stats.errors) as [HintCode, number][]
   errors.sort((a, b) => b[1] - a[1])
-  const gestureErrors = (g.stats.errors['fist-partial'] ?? 0) + (g.stats.errors['pinch-partial'] ?? 0)
+  const gestureErrors = (['fist-partial', 'pinch-partial', 'point-partial'] as const).reduce((a, c) => a + (g.stats.errors[c] ?? 0), 0)
   const attempts = g.stats.jumps + gestureErrors
   const accuracy = attempts ? Math.round((g.stats.jumps / attempts) * 100) : 100
 
   return (
     <div className="screen screen--dim">
       <div className="card card--results">
-        <p className="eyebrow">Уровень пройден</p>
+        <p className="eyebrow">Уровень «{levelInfo(g.sceneId)?.title ?? ''}» пройден</p>
         <h2 className="title title--small">{score} очков</h2>
         <div className="stats">
           <div><b>{g.starsCollected}/{g.starsTotal}</b><span>звёзд</span></div>
@@ -81,15 +83,12 @@ export function Results() {
         </div>
 
         <div className="row">
-          <DwellButton onActivate={() => g.restart()}>Сыграть ещё</DwellButton>
-          <DwellButton
-            variant="ghost"
-            onActivate={() => {
-              g.restart()
-              useGame.getState().setPhase('tutorial')
-            }}
-          >
-            Обучение заново
+          {next && <DwellButton onActivate={() => g.goToScene(next.id)}>Дальше: {next.title}</DwellButton>}
+          <DwellButton variant={next ? 'ghost' : 'primary'} onActivate={() => g.restart()}>
+            Сыграть ещё
+          </DwellButton>
+          <DwellButton variant="ghost" onActivate={() => g.goToScene('lobby')}>
+            В лобби
           </DwellButton>
         </div>
       </div>

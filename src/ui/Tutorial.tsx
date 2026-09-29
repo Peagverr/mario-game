@@ -105,7 +105,8 @@ export function Tutorial() {
 
   useEffect(() => {
     if (index >= STEPS.length) {
-      const t = setTimeout(() => useGame.getState().setPhase('countdown'), 900)
+      // Обучение проходит в лобби — после него сразу можно идти к порталам.
+      const t = setTimeout(() => useGame.getState().setPhase('playing'), 900)
       return () => clearTimeout(t)
     }
   }, [index])
@@ -135,7 +136,7 @@ export function Tutorial() {
       </div>
       {step && (
         <div className="tutorial__skip">
-          <DwellButton variant="ghost" onActivate={() => useGame.getState().setPhase('countdown')}>
+          <DwellButton variant="ghost" onActivate={() => useGame.getState().setPhase('playing')}>
             Пропустить обучение
           </DwellButton>
         </div>

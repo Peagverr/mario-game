@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type { HintCode, Phase } from './controlState'
 
+/** Какие сцены есть (полный реестр — в src/game/scenes/index.ts). */
+export type SceneId = 'lobby' | 'level1' | 'level2' | 'level3'
+
 /** Статистика жестов за забег — для экрана итогов и «точности». */
 export type GestureStats = {
   jumps: number
@@ -10,6 +13,8 @@ export type GestureStats = {
 
 type GameState = {
   phase: Phase
+  /** Текущая сцена: лобби или уровень. */
+  sceneId: SceneId
   /** Номер забега: при «Сыграть ещё» сцена пересоздаётся с нуля. */
   runId: number
   starsCollected: number
@@ -28,12 +33,17 @@ type GameState = {
   startRun: () => void
   finishRun: () => void
   restart: () => void
+  /** Перейти в сцену: в уровень — через отсчёт, в лобби — сразу. */
+  goToScene: (id: SceneId) => void
 }
 
 const emptyStats = (): GestureStats => ({ jumps: 0, errors: {} })
 
+const freshRun = () => ({ starsCollected: 0, falls: 0, startedAt: 0, finishedAt: 0, stats: emptyStats() })
+
 export const useGame = create<GameState>((set) => ({
   phase: 'start',
+  sceneId: 'lobby',
   runId: 0,
   starsCollected: 0,
   starsTotal: 0,
@@ -55,13 +65,17 @@ export const useGame = create<GameState>((set) => ({
   finishRun: () => set({ phase: 'results', finishedAt: performance.now() }),
   restart: () =>
     set((s) => ({
-      phase: 'countdown',
+      phase: s.sceneId === 'lobby' ? 'playing' : 'countdown',
       runId: s.runId + 1,
-      starsCollected: 0,
-      falls: 0,
-      startedAt: 0,
-      finishedAt: 0,
-      stats: emptyStats(),
+      ...freshRun(),
+    })),
+  goToScene: (sceneId) =>
+    set((s) => ({
+      sceneId,
+      phase: sceneId === 'lobby' ? 'playing' : 'countdown',
+      runId: s.runId + 1,
+      starsTotal: 0,
+      ...freshRun(),
     })),
 }))
 

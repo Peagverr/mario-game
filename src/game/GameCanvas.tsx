@@ -7,7 +7,7 @@ import { Suspense, useState } from 'react'
 import { useGame } from '../shared/gameStore'
 import { Bursts, Clouds, Lights, Sky } from './Environment'
 import { palette } from './palette'
-import { Level1 } from './scenes/level1/Level1'
+import { SCENES } from './scenes'
 import { WindowCamera } from './WindowCamera'
 
 /**
@@ -17,6 +17,8 @@ import { WindowCamera } from './WindowCamera'
 export function GameCanvas() {
   const phase = useGame((s) => s.phase)
   const runId = useGame((s) => s.runId)
+  const sceneId = useGame((s) => s.sceneId)
+  const Scene = SCENES[sceneId] ?? SCENES.lobby!
   const [quality, setQuality] = useState<'high' | 'low'>('high')
   const [dpr, setDpr] = useState(1.25)
 
@@ -36,7 +38,7 @@ export function GameCanvas() {
       <Clouds />
       <Suspense fallback={null}>
         <Physics gravity={[0, -24, 0]} paused={phase === 'paused'} timeStep="vary">
-          <Level1 key={runId} />
+          <Scene key={`${sceneId}-${runId}`} />
         </Physics>
       </Suspense>
       <Bursts />

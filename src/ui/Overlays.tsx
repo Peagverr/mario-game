@@ -31,6 +31,7 @@ function formatTime(s: number) {
 
 /** Счёт во время игры: звёзды, время, подсказка по жестам. */
 export function HUD() {
+  const sceneId = useGame((s) => s.sceneId)
   const stars = useGame((s) => s.starsCollected)
   const total = useGame((s) => s.starsTotal)
   const [time, setTime] = useState(0)
@@ -42,12 +43,18 @@ export function HUD() {
 
   return (
     <div className="hud">
-      <div className="hud__pill">
-        <span className="hud__star" aria-hidden>★</span>
-        <b>{stars}</b>
-        <span className="hud__dim">/ {total}</span>
-      </div>
-      <div className="hud__pill hud__pill--time">{formatTime(time)}</div>
+      {sceneId === 'lobby' ? (
+        <div className="hud__pill hud__pill--lobby">Лобби — зайди в портал, чтобы начать уровень</div>
+      ) : (
+        <>
+          <div className="hud__pill">
+            <span className="hud__star" aria-hidden>★</span>
+            <b>{stars}</b>
+            <span className="hud__dim">/ {total}</span>
+          </div>
+          <div className="hud__pill hud__pill--time">{formatTime(time)}</div>
+        </>
+      )}
       <div className="hud__legend">
         {control.scheme === 'pointer' ? (
           <>
@@ -82,6 +89,11 @@ export function PauseMenu() {
           <DwellButton variant="ghost" onActivate={() => useGame.getState().restart()}>
             Заново
           </DwellButton>
+          {useGame.getState().sceneId !== 'lobby' && (
+            <DwellButton variant="ghost" onActivate={() => useGame.getState().goToScene('lobby')}>
+              В лобби
+            </DwellButton>
+          )}
           <DwellButton variant="ghost" onActivate={toggleScheme}>
             Ходьба: {scheme === 'pointer' ? 'палец' : 'ладонь'}
           </DwellButton>

@@ -1,10 +1,10 @@
 /**
- * Таблица рекордов — хранится в браузере игрока (localStorage).
+ * Таблица рекордов — отдельная для каждого уровня, хранится в браузере игрока (localStorage).
  * Имя придумываем сами: вводить его без клавиатуры неудобно.
  */
 export type Record = { name: string; score: number; stars: number; seconds: number; at: number }
 
-const KEY = 'okno.leaderboard.v1'
+const key = (level: string) => `okno.leaderboard.v2.${level}`
 const ADJ = ['Смелый', 'Быстрый', 'Ловкий', 'Хитрый', 'Весёлый', 'Зоркий', 'Прыгучий', 'Тихий']
 const NOUN = ['Лис', 'Барс', 'Ёж', 'Филин', 'Кот', 'Сокол', 'Волк', 'Енот']
 
@@ -13,19 +13,24 @@ export function randomName() {
   return `${r(ADJ)} ${r(NOUN)}`
 }
 
-export function loadRecords(): Record[] {
+export function loadRecords(level: string): Record[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]') as Record[]
+    return JSON.parse(localStorage.getItem(key(level)) ?? '[]') as Record[]
   } catch {
     return []
   }
 }
 
+/** Лучший результат уровня — для таблички у портала в лобби. */
+export function bestRecord(level: string): Record | undefined {
+  return loadRecords(level)[0]
+}
+
 /** Сохраняет результат и возвращает таблицу (лучшие 8) и место игрока (или −1). */
-export function saveRecord(rec: Record): { top: Record[]; place: number } {
-  const all = [...loadRecords(), rec].sort((a, b) => b.score - a.score).slice(0, 8)
+export function saveRecord(level: string, rec: Record): { top: Record[]; place: number } {
+  const all = [...loadRecords(level), rec].sort((a, b) => b.score - a.score).slice(0, 8)
   try {
-    localStorage.setItem(KEY, JSON.stringify(all))
+    localStorage.setItem(key(level), JSON.stringify(all))
   } catch {
     // Хранилище недоступно (приватное окно) — таблица просто не сохранится.
   }
