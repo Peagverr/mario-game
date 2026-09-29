@@ -48,7 +48,7 @@ export function App() {
       {inGame && control.tracking.ready && <CameraPreview />}
       {inGame && <Hints />}
       {(phase === 'playing' || phase === 'tutorial') && <JoystickIndicator />}
-      {phase === 'playing' && <MenuHoldRing />}
+      {(phase === 'playing' || phase === 'tutorial') && <MenuHoldRing />}
       {menu && <HandCursor />}
     </div>
   )

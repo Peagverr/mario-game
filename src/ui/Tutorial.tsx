@@ -19,7 +19,7 @@ type Step = {
   onDone?: () => void
 }
 
-type StepCtx = { acc: number; start: { jumpSeq: number; yaw: number; headX: number } }
+type StepCtx = { acc: number; start: { jumpSeq: number; yaw: number; headX: number; pauseSeq: number } }
 
 const hold = (cond: boolean, ctx: StepCtx, dt: number, ms: number) => {
   ctx.acc = cond ? ctx.acc + dt : Math.max(0, ctx.acc - dt * 2)
@@ -65,19 +65,25 @@ const STEPS: Step[] = [
     text: 'Влево-вправо, вверх-вниз. Экран — окно: загляни в мир сбоку.',
     check: (c) => Math.min(1, Math.abs(control.head.x - c.start.headX) / 0.05),
   },
+  {
+    id: 'menu',
+    title: 'Две ладони — меню',
+    text: 'Раскрой обе ладони и подержи секунду — откроется меню: пауза, заново, лобби, схема ходьбы.',
+    check: (c) => (control.pauseSeq !== c.start.pauseSeq ? 1 : Math.max(control.menuHold * 0.95, control.devKeyboard ? 1 : 0)),
+  },
 ]
 
 export function Tutorial() {
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
-  const ctx = useRef<StepCtx>({ acc: 0, start: { jumpSeq: 0, yaw: 0, headX: 0 } })
+  const ctx = useRef<StepCtx>({ acc: 0, start: { jumpSeq: 0, yaw: 0, headX: 0, pauseSeq: 0 } })
   const step = STEPS[index]
 
   useEffect(() => {
     if (!step) return
     ctx.current = {
       acc: 0,
-      start: { jumpSeq: control.jumpSeq, yaw: control.view.yaw, headX: control.head.x },
+      start: { jumpSeq: control.jumpSeq, yaw: control.view.yaw, headX: control.head.x, pauseSeq: control.pauseSeq },
     }
     let raf = 0
     let last = performance.now()
