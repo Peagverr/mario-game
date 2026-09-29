@@ -304,3 +304,5 @@ body {
 .hud__pill--secret { font-size: 18px; color: var(--ink); animation: pop-in 0.35s ease-out; }
 .hud__pill--secret b { color: var(--teal); font-size: 24px; }
 @keyframes pop-in { from { transform: scale(1.3); } }
+.bridge-sign { border-color: var(--coral); }
+.bridge-sign.is-ok { border-color: var(--teal); background: #e9fbf8; }

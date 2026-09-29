@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { Level1 } from './level1/Level1'
 import { Level2 } from './level2/Level2'
+import { Level3 } from './level3/Level3'
 import { Lobby } from './lobby/Lobby'
 
 /**
@@ -24,13 +25,14 @@ export type LevelInfo = {
 export const LEVELS: LevelInfo[] = [
   { id: 'level1', title: 'Острова', feature: 'палец и прыжки', color: '#ffd23f', component: Level1 },
   { id: 'level2', title: 'Загляни', feature: 'двигай головой', color: '#2ec4b6', component: Level2 },
+  { id: 'level3', title: 'Поверни мир', feature: 'щипок левой рукой', color: '#ff5a5f', component: Level3 },
 ]
 
 export const SCENES: Record<SceneId, ComponentType | undefined> = {
   lobby: Lobby,
   level1: Level1,
   level2: Level2,
-  level3: undefined,
+  level3: Level3,
 }
 
 export function levelInfo(id: SceneId) {
