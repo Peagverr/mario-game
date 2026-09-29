@@ -17,6 +17,20 @@ const BONES: [number, number][] = [
   [13, 17], [0, 17], [17, 18], [18, 19], [19, 20],
 ]
 const COLORS = { right: '#ff5a5f', left: '#2ec4b6', bad: '#ff2d2d' }
+/** Открой игру с ?debug — под мини-окном появятся замеры для подстройки порогов. */
+const DEBUG = new URLSearchParams(location.search).has('debug')
+
+function debugLine() {
+  const l = control.hands.left
+  const r = control.hands.right
+  const h = control.head
+  const parts = [
+    l ? `щипок ${l.pinchRatio.toFixed(2)}${l.pinching ? ' ✓' : ''}` : 'щипок —',
+    r ? `пальцы ${r.curls.map((c) => (c === 'curled' ? '●' : c === 'half' ? '◐' : '○')).join('')}` : '',
+    h.visible ? `голова x${(h.x * 100).toFixed(0)} y${(h.y * 100).toFixed(0)} z${(h.z * 100).toFixed(0)} см` : 'лицо —',
+  ]
+  return parts.filter(Boolean).join(' · ')
+}
 
 function describe(h: HandState | null, side: 'left' | 'right') {
   if (!h) return side === 'right' ? 'Правая: нет' : 'Левая: нет'
@@ -26,7 +40,7 @@ function describe(h: HandState | null, side: 'left' | 'right') {
 
 export function CameraPreview() {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const [labels, setLabels] = useState({ left: '', right: '', fps: 0 })
+  const [labels, setLabels] = useState({ left: '', right: '', fps: 0, debug: '' })
 
   useEffect(() => {
     let raf = 0
@@ -90,6 +104,7 @@ export function CameraPreview() {
           left: describe(control.hands.left, 'left'),
           right: describe(control.hands.right, 'right'),
           fps: Math.round(control.tracking.fps),
+          debug: DEBUG ? debugLine() : '',
         })
       }
     }
@@ -104,6 +119,7 @@ export function CameraPreview() {
         <span className="tag tag--right">{labels.right}</span>
         <span className="tag tag--left">{labels.left}</span>
         <span className="cam-preview__fps">камера {labels.fps} к/с</span>
+        {labels.debug && <span className="cam-preview__debug">{labels.debug}</span>}
       </div>
     </div>
   )

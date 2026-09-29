@@ -42,7 +42,8 @@ let video: HTMLVideoElement | null = null
 let running = false
 
 const trackers = { left: new HandTracker(), right: new HandTracker() }
-const headFilter = new OneEuro3(1.0, 0.8)
+// Голова: быстрее реагирует на движение (эффект окна не должен запаздывать), в покое всё ещё гладко.
+const headFilter = new OneEuro3(1.6, 3)
 const hintFilter = new HintFilter()
 
 /** Внутреннее состояние жестов между кадрами. */

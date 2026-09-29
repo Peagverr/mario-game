@@ -22,11 +22,11 @@ const WINDOW_W = 17
 /** Наклон взгляда вниз. */
 const PITCH = MathUtils.degToRad(38)
 /** Усиление движения головы. */
-const HEAD_GAIN = 1.6
+const HEAD_GAIN = 2.4
 /** Максимальный сдвиг головы от обычного положения, который учитываем (м). */
-const HEAD_MAX = 0.18
+const HEAD_MAX = 0.25
 /** За сколько секунд «обычное» положение головы догоняет текущее. */
-const NEUTRAL_ADAPT_S = 4
+const NEUTRAL_ADAPT_S = 12
 /** Насколько камера заглядывает вперёд по ходу движения (секунды пути). */
 const LOOK_AHEAD_S = 0.45
 /** Расстояние от глаза до окна, когда лица не видно (м). */
@@ -82,7 +82,7 @@ export function WindowCamera() {
     const dx = h.visible ? MathUtils.clamp(h.x - neutral.x, -HEAD_MAX, HEAD_MAX) : 0
     const dy = h.visible ? MathUtils.clamp(h.y - neutral.y, -HEAD_MAX, HEAD_MAX) : 0
     const ez = h.visible ? MathUtils.clamp(DEFAULT_EYE_Z + (h.z - neutral.z) * 0.6, 0.35, 1.0) : DEFAULT_EYE_Z
-    const k = 1 - Math.exp(-(h.visible ? 16 : 3) * dt)
+    const k = 1 - Math.exp(-(h.visible ? 22 : 3) * dt)
     eye.x += (dx * HEAD_GAIN - eye.x) * k
     eye.y += (dy * HEAD_GAIN - eye.y) * k
     eye.z += (ez - eye.z) * k

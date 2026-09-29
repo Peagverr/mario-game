@@ -24,8 +24,8 @@ const EXTENDED_RATIO = 1.5
 const CURLED_RATIO = 1.2
 
 /** Щипок: включается, когда пальцы ближе PINCH_ON, выключается дальше PINCH_OFF (запас против мигания). */
-export const PINCH_ON = 0.33
-export const PINCH_OFF = 0.55
+export const PINCH_ON = 0.4
+export const PINCH_OFF = 0.62
 /** Щипок не отпускается, пока пальцы разведены меньше этого времени — один плохой кадр его не оборвёт. */
 const PINCH_RELEASE_MS = 150
 
@@ -93,7 +93,12 @@ export class HandTracker {
     const fist = fourCurled || (gesture === 'Closed_Fist' && curled.slice(1).filter(Boolean).length >= 3)
     const openPalm = fourExtended && curls[0] !== 'curled'
 
-    const pinchRatio = dist(world[4], world[8]) / (dist(world[0], world[9]) || 1e-6)
+    // Щипок меряем двумя способами и берём меньшее: по объёмным точкам (не зависит от поворота руки)
+    // и по картинке (когда рука боком, пальцы закрывают друг друга и объёмные точки «разъезжаются»,
+    // а на картинке кончики как раз сливаются). Подушки пальцев толстые — сомкнутые кончики не дают ноль.
+    const pinchWorld = dist(world[4], world[8]) / (dist(world[0], world[9]) || 1e-6)
+    const pinchImage = dist(s[4], s[8]) / (size || 1e-6)
+    const pinchRatio = Math.min(pinchWorld, pinchImage)
     // Указательный не должен быть сжат в кулак — иначе кулак с прижатым большим пальцем выглядит как щипок.
     const indexFree = curls[1] !== 'curled'
     if (this.pinching) {
