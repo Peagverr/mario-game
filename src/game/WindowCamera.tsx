@@ -18,9 +18,12 @@ import { runtime } from './runtime'
 /** Предполагаемая ширина экрана ноутбука в метрах (14–15"). */
 const PHYSICAL_SCREEN_W = 0.31
 /** Ширина «окна» в единицах мира на уровне героя: сколько мира видно по горизонтали. */
-const WINDOW_W = 17
+const WINDOW_W = 12
 /** Наклон взгляда вниз. */
-const PITCH = MathUtils.degToRad(38)
+const PITCH = MathUtils.degToRad(27)
+/** Пределы наклона щипком: чтобы не уйти под землю и не смотреть строго сверху. */
+const PITCH_MIN = MathUtils.degToRad(10)
+const PITCH_MAX = MathUtils.degToRad(60)
 /** Усиление движения головы. */
 const HEAD_GAIN = 2.4
 /** Максимальный сдвиг головы от обычного положения, который учитываем (м). */
@@ -62,7 +65,8 @@ export function WindowCamera() {
     const yaw = -control.view.yaw
     runtime.cameraYaw = yaw
     rig.current.position.copy(focus)
-    rig.current.rotation.set(-PITCH, yaw, 0, 'YXZ')
+    const pitch = MathUtils.clamp(PITCH + control.view.pitch, PITCH_MIN, PITCH_MAX)
+    rig.current.rotation.set(-pitch, yaw, 0, 'YXZ')
 
     if (runtime.shake > 0.001) {
       rig.current.position.x += (Math.random() - 0.5) * runtime.shake * 0.6

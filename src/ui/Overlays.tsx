@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { control } from '../shared/controlState'
 import { sfx } from '../game/sfx'
 import { useGame, runSeconds } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
@@ -48,25 +49,41 @@ export function HUD() {
       </div>
       <div className="hud__pill hud__pill--time">{formatTime(time)}</div>
       <div className="hud__legend">
-        <span>ладонь — идти</span>
+        {control.scheme === 'pointer' ? (
+          <>
+            <span>палец — идти</span>
+            <span>ладонь — стоп</span>
+          </>
+        ) : (
+          <span>ладонь — идти</span>
+        )}
         <span>кулак — прыжок</span>
-        <span>щипок левой — повернуть</span>
-        <span>две ладони — пауза</span>
+        <span>щипок левой — повернуть и наклонить</span>
+        <span>две ладони — меню</span>
       </div>
     </div>
   )
 }
 
 export function PauseMenu() {
+  const [scheme, setScheme] = useState(control.scheme)
+  const toggleScheme = () => {
+    control.scheme = control.scheme === 'pointer' ? 'palm' : 'pointer'
+    control.move.x = control.move.y = 0
+    setScheme(control.scheme)
+  }
   return (
     <div className="screen screen--dim">
       <div className="card">
-        <h2 className="title title--small">Пауза</h2>
+        <h2 className="title title--small">Меню</h2>
         <p className="lead">Наведи палец на кнопку и подержи секунду.</p>
         <div className="row">
           <DwellButton onActivate={() => useGame.getState().setPhase('playing')}>Продолжить</DwellButton>
           <DwellButton variant="ghost" onActivate={() => useGame.getState().restart()}>
             Заново
+          </DwellButton>
+          <DwellButton variant="ghost" onActivate={toggleScheme}>
+            Ходьба: {scheme === 'pointer' ? 'палец' : 'ладонь'}
           </DwellButton>
         </div>
       </div>

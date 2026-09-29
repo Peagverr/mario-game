@@ -27,6 +27,11 @@ const MIN_JUMP_S = 0.1
 /** Кулак считается разжатым, только если не виден дольше этого (защита от мигания распознавания). */
 const RELEASE_GRACE_S = 0.08
 const SHADOW_RAY = 40
+/** После возрождения герой стоит, пока направление жеста не изменится на столько градусов (идея Абзала). */
+const RESPAWN_UNLOCK_DEG = 35
+/** Мягкие края: насколько впереди ног ищем землю и какой обрыв уже считается пропастью. */
+const EDGE_PROBE = RADIUS + 0.25
+const EDGE_DROP = 1.5
 
 const toFeet = HALF_HEIGHT + RADIUS
 const tmp = new Vector3()
@@ -53,6 +58,8 @@ export function Player({ spawn, killY }: Props) {
     jumpStartedAt: -1,
     rising: false,
     heldSeenAt: -1,
+    /** Направление жеста в момент смерти: пока рука «там же», герой стоит. */
+    lockDir: null as null | { x: number; y: number },
   })
   const shadow = useRef<Mesh>(null)
 
@@ -93,10 +100,22 @@ export function Player({ spawn, killY }: Props) {
     if (!s.grounded) s.minVy = Math.min(s.minVy, vel.y)
     s.wasGrounded = s.grounded
 
+    // — После смерти: рука на том же месте = «стою». Идём, только когда жест изменился —
+    let mx = canMove ? control.move.x : 0
+    let my = canMove ? control.move.y : 0
+    if (s.lockDir) {
+      const len = Math.hypot(mx, my)
+      if (len < 0.05) s.lockDir = null
+      else {
+        const cos = (mx * s.lockDir.x + my * s.lockDir.y) / (len * Math.hypot(s.lockDir.x, s.lockDir.y))
+        if (Math.acos(MathUtils.clamp(cos, -1, 1)) > MathUtils.degToRad(RESPAWN_UNLOCK_DEG)) s.lockDir = null
+        else mx = my = 0
+      }
+    }
+    runtime.moveLocked = !!s.lockDir
+
     // — Ходьба относительно камеры: «вправо» на экране = вправо для героя —
     const yaw = runtime.cameraYaw
-    const mx = canMove ? control.move.x : 0
-    const my = canMove ? control.move.y : 0
     const dirX = mx * Math.cos(yaw) - my * Math.sin(yaw)
     const dirZ = -mx * Math.sin(yaw) - my * Math.cos(yaw)
     const accel = s.grounded ? 14 : 6
@@ -137,12 +156,42 @@ export function Player({ spawn, killY }: Props) {
       vx *= 0.8
       vz *= 0.8
     }
+
+    // — Мягкие края: шагом с обрыва не упасть, через пропасть — только прыжком —
+    if (s.grounded && !s.rising) {
+      const groundAt = (x: number, z: number) =>
+        !!world.castRay(
+          new rapier.Ray({ x, y: pos.y, z }, { x: 0, y: -1, z: 0 }),
+          toFeet + EDGE_DROP,
+          true,
+          rapier.QueryFilterFlags.EXCLUDE_SENSORS,
+          undefined,
+          undefined,
+          b,
+        )
+      const cx = carry?.x ?? 0
+      const cz = carry?.z ?? 0
+      const ox = vx - cx
+      const oz = vz - cz
+      const px = Math.abs(ox) > 0.1 ? pos.x + Math.sign(ox) * EDGE_PROBE : pos.x
+      const pz = Math.abs(oz) > 0.1 ? pos.z + Math.sign(oz) * EDGE_PROBE : pos.z
+      // По осям отдельно — чтобы герой скользил вдоль края, а не застревал.
+      if (px !== pos.x && !groundAt(px, pos.z)) vx = cx
+      if (pz !== pos.z && !groundAt(pos.x, pz)) vz = cz
+      if (vx !== cx && vz !== cz && !groundAt(px, pz)) {
+        vx = cx
+        vz = cz
+      }
+    }
     b.setLinvel({ x: vx, y: vy, z: vz }, true)
 
     // — Падение в пропасть —
     if (pos.y < killY) {
       b.setTranslation({ x: s.checkpoint.x, y: s.checkpoint.y, z: s.checkpoint.z }, true)
       b.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      // Запоминаем, куда сейчас «показывает» рука: пока так и держишь — герой стоит.
+      const m = { x: control.move.x, y: control.move.y }
+      s.lockDir = Math.hypot(m.x, m.y) > 0.05 ? m : null
       runtime.shake = 0.8
       sfx.fall()
       if (phase === 'playing') useGame.getState().addFall()

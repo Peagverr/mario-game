@@ -264,3 +264,20 @@ body {
   border: 2px solid var(--ink); border-radius: 99px; padding: 2px 8px;
 }
 .cam-preview__debug { flex-basis: 100%; font: 11px ui-monospace, monospace; color: var(--ink); }
+
+.joystick.is-locked .joystick__knob { background: var(--star); }
+
+/* ---------- Кольцо «открываю меню» (две ладони) ---------- */
+.menu-hold {
+  --p: 0;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 0.15s;
+}
+.menu-hold__ring {
+  width: 120px; height: 120px; border-radius: 50%;
+  background: conic-gradient(var(--teal) calc(var(--p) * 360deg), rgba(255, 253, 248, 0.8) 0);
+  border: 4px solid var(--ink); box-shadow: 0 5px 0 var(--ink);
+  -webkit-mask: radial-gradient(circle, transparent 38px, #000 39px);
+          mask: radial-gradient(circle, transparent 38px, #000 39px);
+}
+.menu-hold span { position: absolute; font: 800 16px var(--font-head); color: var(--ink); }

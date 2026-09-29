@@ -1,5 +1,5 @@
-import type { HandState, Hint, HintCode } from '../shared/controlState'
-import { FINGER_NAMES, FINGER_POINTS, PINCH_OFF, PINCH_ON } from './gestures'
+import type { HandState, Hint, HintCode, MoveScheme } from '../shared/controlState'
+import { FINGER_NAMES, FINGER_POINTS, PINCH_OFF, PINCH_ON, POINT_MIN_LEN } from './gestures'
 
 /**
  * «Режим ошибки»: замечаем движения, которые ПОЧТИ правильные, и говорим, что конкретно исправить.
@@ -20,6 +20,8 @@ export type ErrorContext = {
   brightness: number
   /** Смещение правой ладони от «нулевой точки» джойстика, в долях рабочей зоны (1 = край зоны). */
   joystickReach: number
+  /** Схема ходьбы: от неё зависят подсказки для правой руки. */
+  scheme: MoveScheme
   /** Сколько мс нет ни одной руки. */
   noHandsMs: number
   /** Сколько мс нет лица. */
@@ -76,7 +78,13 @@ export function detectCandidates(c: ErrorContext): Hint[] {
   if (!c.wantsHands) return out
 
   if (c.noHandsMs > 1500) {
-    out.push({ code: 'no-hands', hand: 'right', text: 'Подними правую ладонь перед камерой на уровне груди — это джойстик героя' })
+    out.push({
+      code: 'no-hands',
+      hand: 'right',
+      text: c.scheme === 'pointer'
+        ? 'Подними правую руку на уровень груди и покажи указательным пальцем, куда идти'
+        : 'Подними правую ладонь перед камерой на уровне груди — это джойстик героя',
+    })
   }
 
   // Рука пропала прямо во время щипка — почти всегда её повернули ребром: так камера ладонь не видит.
@@ -94,10 +102,40 @@ export function detectCandidates(c: ErrorContext): Hint[] {
     const edge = edgeHint(r, 'right')
     if (edge) out.push(edge)
 
-    // Кулак почти собран: часть пальцев согнута, часть нет.
     const nonThumb = r.curls.slice(1)
     const curledCount = nonThumb.filter((s) => s === 'curled').length
-    if (!r.fist && curledCount >= 2 && curledCount <= 3) {
+    const othersExtended = [2, 3, 4].filter((i) => r.curls[i] === 'extended')
+    const othersCurled = [2, 3, 4].every((i) => r.curls[i] === 'curled')
+
+    if (c.scheme === 'pointer' && !r.fist && !r.openPalm) {
+      if (r.curls[1] === 'extended' && othersExtended.length >= 2) {
+        // Показывает пальцем, но остальные пальцы тоже выпрямлены.
+        out.push({
+          code: 'point-partial',
+          hand: 'right',
+          landmarks: othersExtended.flatMap((i) => FINGER_POINTS[i]),
+          text: `Чтобы идти, оставь выпрямленным только указательный — согни ${fingersList(othersExtended)}`,
+        })
+      } else if (r.curls[1] === 'half' && othersCurled) {
+        out.push({
+          code: 'point-partial',
+          hand: 'right',
+          landmarks: FINGER_POINTS[1],
+          text: 'Указательный согнут наполовину: выпрями его — идти, согни полностью — прыжок',
+        })
+      } else if (r.pointing && r.pointLen < POINT_MIN_LEN) {
+        out.push({
+          code: 'point-camera',
+          hand: 'right',
+          landmarks: FINGER_POINTS[1],
+          text: 'Палец смотрит прямо в камеру — наклони его туда, куда идти: вверх — вперёд, в сторону — вбок',
+        })
+      }
+    }
+
+    // Кулак почти собран: часть пальцев согнута, часть нет (но это не попытка показать пальцем).
+    const pointAttempt = r.curls[1] !== 'curled' && othersCurled
+    if (!r.fist && !r.pointing && !pointAttempt && curledCount >= 2 && curledCount <= 3) {
       const notCurled = [1, 2, 3, 4].filter((i) => r.curls[i] !== 'curled')
       out.push({
         code: 'fist-partial',
@@ -107,7 +145,7 @@ export function detectCandidates(c: ErrorContext): Hint[] {
       })
     }
 
-    if (c.joystickReach > 1.8) {
+    if (c.scheme === 'palm' && c.joystickReach > 1.8) {
       out.push({ code: 'joystick-far', hand: 'right', text: 'Рука слишком далеко от центра — для бега хватит небольшого сдвига ладони' })
     }
   }
@@ -146,12 +184,14 @@ const HOLD_MS: Record<HintCode, number> = {
   'wrong-hand': 0,
   'no-hands': 0,
   'hand-turned': 0,
+  'point-partial': 500,
+  'point-camera': 600,
 }
 
 /** Порядок важности: сначала то, без чего ничего не работает. */
 const PRIORITY: HintCode[] = [
   'dark', 'no-face', 'too-close', 'too-far', 'hand-turned', 'no-hands', 'wrong-hand',
-  'hand-edge', 'fist-partial', 'pinch-partial', 'joystick-far', 'head-turned',
+  'hand-edge', 'point-partial', 'point-camera', 'fist-partial', 'pinch-partial', 'joystick-far', 'head-turned',
 ]
 
 const MIN_VISIBLE_MS = 1600
@@ -210,4 +250,6 @@ export const ERROR_ADVICE: Record<HintCode, { title: string; tip: string }> = {
   'head-turned': { title: 'Голова повёрнута', tip: 'Смотри на экран прямо — двигай головой, а не поворачивай её.' },
   dark: { title: 'Мало света', tip: 'Свет должен падать на лицо и руки, а не из-за спины.' },
   'hand-turned': { title: 'Рука ребром к камере', tip: 'Держи ладонь к камере или наискосок — ребром её не видно.' },
+  'point-partial': { title: 'Неточное указание', tip: 'Выпрями только указательный, остальные пальцы прижми к ладони.' },
+  'point-camera': { title: 'Палец в камеру', tip: 'Показывай пальцем вверх или в сторону, а не прямо в камеру.' },
 }

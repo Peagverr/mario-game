@@ -61,8 +61,12 @@ export function fingerCurls(p: Point[]): FingerCurl[] {
   return result
 }
 
-/** Хранит состояние одной руки между кадрами: сглаживание и «запас» щипка. */
+/** Палец короче этого (в размерах ладони) на картинке — значит, смотрит в камеру, направление не понять. */
+export const POINT_MIN_LEN = 0.35
+
+/** Хранит состояние одной руки между кадрами: сглаживание и «запас» щипка и указания. */
 export class HandTracker {
+  private pointing = false
   private pinching = false
   private pinchOpenSince = 0
   private filters = Array.from({ length: 21 }, () => new OneEuro3(1.5, 0.05))
@@ -113,6 +117,18 @@ export class HandTracker {
       this.pinchOpenSince = 0
     }
 
+    // Указание: указательный выпрямлен, из остальных трёх выпрямлен максимум один.
+    // Отпускаем, только если указательный согнулся, раскрылась вся ладонь или сжался кулак — без мигания на границе.
+    const othersExtended = curls.slice(2).filter((c) => c === 'extended').length
+    if (this.pointing) this.pointing = curls[1] !== 'curled' && !fourExtended && !fist && !this.pinching
+    else this.pointing = curls[1] === 'extended' && othersExtended <= 1 && !this.pinching
+
+    // Направление — от основания указательного к кончику, на картинке (y вверх).
+    const vx = s[8].x - s[5].x
+    const vy = -(s[8].y - s[5].y)
+    const vlen = Math.hypot(vx, vy) || 1e-6
+    const pointLen = vlen / (size || 1e-6)
+
     return {
       present: true,
       points,
@@ -123,11 +139,15 @@ export class HandTracker {
       openPalm,
       pinchRatio,
       pinching: this.pinching,
+      pointing: this.pointing,
+      pointDir: { x: vx / vlen, y: vy / vlen },
+      pointLen,
       gesture,
     }
   }
 
   reset() {
+    this.pointing = false
     this.pinching = false
     this.pinchOpenSince = 0
     this.filters.forEach((f) => f.reset())

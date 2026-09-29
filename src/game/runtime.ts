@@ -15,6 +15,8 @@ export const runtime = {
   movers: new Map<number, Vector3>(),
   /** Очередь всплесков частиц (сбор звезды, приземление). */
   bursts: [] as { pos: Vector3; color: string; count: number; speed: number }[],
+  /** После возрождения герой стоит, пока игрок не сменит жест. */
+  moveLocked: false,
   /** Тряска камеры, 0..1, затухает сама. */
   shake: 0,
 }

@@ -2,7 +2,7 @@ import { FaceLandmarker, FilesetResolver, GestureRecognizer } from '@mediapipe/t
 import { control, type HandState, type Point } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 import { detectCandidates, HintFilter } from './errors'
-import { HandTracker } from './gestures'
+import { HandTracker, POINT_MIN_LEN } from './gestures'
 import { estimateHead, FACE_PREVIEW_POINTS, yawFromMatrix } from './head'
 import { OneEuro3 } from './oneEuro'
 
@@ -33,7 +33,15 @@ const GRAB_LOST_GRACE_MS = 250
 control.joystick.deadzone = JOYSTICK_DEADZONE
 /** Поворот мира: провести щипком через весь кадр = столько радиан. */
 const GRAB_ROTATE_GAIN = Math.PI * 1.6
-const PAUSE_HOLD_MS = 1000
+/** Наклон мира: провести щипком через весь кадр по вертикали = столько радиан. */
+const GRAB_PITCH_GAIN = 1.4
+const PITCH_LIMIT = 0.35
+/** Две раскрытые ладони столько держать, чтобы открылось меню. */
+const MENU_HOLD_MS = 800
+/** Кулак сжат вскоре после указания — прыгаем в ту же сторону (направление «запоминается»). */
+const POINT_LATCH_MS = 600
+/** Короткий зазор при переходе кулак → палец, чтобы герой не дёргался. */
+const POINT_GAP_MS = 150
 const JUMP_COOLDOWN_MS = 250
 
 let recognizer: GestureRecognizer | null = null
@@ -51,9 +59,14 @@ const s = {
   joyCenter: { x: 0.64, y: 0.62 },
   wasFist: false,
   lastJump: 0,
-  grab: null as null | { x: number; yaw: number; size: number; zoom: number },
+  grab: null as null | { x: number; y: number; yaw: number; pitch: number; size: number; zoom: number },
   pauseSince: 0,
   pauseArmed: true,
+  /** Последнее направление пальца и когда оно было. */
+  lastPointDir: { x: 0, y: 0 },
+  lastPointAt: 0,
+  /** Направление, «запомненное» на время кулака. */
+  latchedDir: null as null | { x: number; y: number },
   lastHandsAt: 0,
   lastFaceAt: 0,
   onlyLeftSince: 0,
@@ -189,10 +202,11 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     if (t - s.lastRightAt > 800 && central) s.joyCenter = { x: p.x, y: p.y }
     s.lastRightAt = t
   }
-  applyJoystick(next.right)
+  if (control.scheme === 'pointer') applyPointer(next.right, t)
+  else applyJoystick(next.right)
   applyJump(next.right, t)
   applyGrab(next.left)
-  applyPause(next.left, next.right, t)
+  applyMenu(found.length === 2 ? [next.left, next.right] : [], t)
   applyCursor(next.right ?? next.left)
 }
 
@@ -232,6 +246,33 @@ function applyJoystick(r: HandState | null) {
   control.joystick.y = -dy
 }
 
+/** Ходьба пальцем: показываешь — идёт туда, раскрыл ладонь или опустил руку — стоит. */
+function applyPointer(r: HandState | null, t: number) {
+  control.joystick.active = !!r
+  joystickReach = 0
+  let dir: { x: number; y: number } | null = null
+
+  if (r?.pointing && r.pointLen > POINT_MIN_LEN) {
+    dir = r.pointDir
+    s.lastPointDir = { ...r.pointDir }
+    s.lastPointAt = t
+  }
+  // Кулак сразу после указания — прыжок в ту же сторону: направление держим, пока кулак сжат.
+  if (r?.fist) {
+    if (!s.latchedDir && t - s.lastPointAt < POINT_LATCH_MS) s.latchedDir = { ...s.lastPointDir }
+    if (s.latchedDir) dir = s.latchedDir
+  } else {
+    s.latchedDir = null
+    // Переход кулак → палец длится пару кадров — не останавливаем героя на это мгновение.
+    if (!dir && r && !r.openPalm && t - s.lastPointAt < POINT_GAP_MS) dir = s.lastPointDir
+  }
+
+  control.move.x = dir ? dir.x : 0
+  control.move.y = dir ? dir.y : 0
+  control.joystick.x = control.move.x
+  control.joystick.y = control.move.y
+}
+
 function applyJump(r: HandState | null, t: number) {
   const fist = !!r?.fist
   control.jumpHeld = fist
@@ -256,24 +297,34 @@ function applyGrab(l: HandState | null) {
   }
   lastGrabAt = t
   const x = (l.points[4].x + l.points[8].x) / 2
-  if (!s.grab) s.grab = { x, yaw: control.view.yaw, size: l.size, zoom: control.view.zoom }
+  const y = (l.points[4].y + l.points[8].y) / 2
+  if (!s.grab) s.grab = { x, y, yaw: control.view.yaw, pitch: control.view.pitch, size: l.size, zoom: control.view.zoom }
   control.view.yaw = s.grab.yaw + (x - s.grab.x) * GRAB_ROTATE_GAIN
+  // «Схватил мир и потянул вниз» — дальний край мира опускается, смотрим сверху; вверх — сбоку.
+  control.view.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, s.grab.pitch + (y - s.grab.y) * GRAB_PITCH_GAIN))
   // Рука ближе к камере → ладонь крупнее → приближаем мир.
   const k = Math.pow(l.size / (s.grab.size || 1e-6), 1.6)
   control.view.zoom = Math.min(1.8, Math.max(0.6, s.grab.zoom * k))
 }
 
-function applyPause(l: HandState | null, r: HandState | null, t: number) {
-  const both = !!(l?.openPalm && r?.openPalm && !l.pinching)
-  if (!both) {
+/**
+ * Меню: две раскрытые ладони ~0,8 с. Неважно, какую руку MediaPipe назвал левой или правой —
+ * достаточно, что в кадре две руки и обе раскрыты (по нашим правилам или по встроенному жесту Open_Palm).
+ */
+function applyMenu(hands: (HandState | null)[], t: number) {
+  const open = hands.filter((h) => h && !h.pinching && (h.openPalm || h.gesture === 'Open_Palm')).length
+  if (open < 2) {
     s.pauseSince = 0
     s.pauseArmed = true
+    control.menuHold = 0
     return
   }
   if (!s.pauseSince) s.pauseSince = t
-  if (s.pauseArmed && t - s.pauseSince > PAUSE_HOLD_MS) {
+  control.menuHold = s.pauseArmed ? Math.min(1, (t - s.pauseSince) / MENU_HOLD_MS) : 0
+  if (s.pauseArmed && t - s.pauseSince > MENU_HOLD_MS) {
     control.pauseSeq++
     s.pauseArmed = false
+    control.menuHold = 0
   }
 }
 
@@ -330,6 +381,7 @@ function updateHints(t: number) {
     head: control.head,
     brightness: control.tracking.brightness,
     joystickReach,
+    scheme: control.scheme,
     noHandsMs: t - s.lastHandsAt,
     noFaceMs: t - s.lastFaceAt,
     onlyLeftMs: s.onlyLeftSince ? t - s.onlyLeftSince : 0,
