@@ -69,8 +69,8 @@ export type HandState = {
   gesture: string
 }
 
-/** Схема ходьбы: указательный палец (основная) или ладонь-джойстик (для сравнения). */
-export type MoveScheme = 'pointer' | 'palm'
+/** Схема ходьбы: ладонь-джойстик, палец-наклон (куда направлен) или палец-точка (кончик пальца как джойстик). */
+export type MoveScheme = 'palm' | 'pointer' | 'fingertip'
 
 export type Phase = 'start' | 'loading' | 'tutorial' | 'countdown' | 'playing' | 'paused' | 'results'
 

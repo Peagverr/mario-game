@@ -3,6 +3,7 @@ import { sfx } from '../game/sfx'
 import { calibrateJoystick } from '../input/tracker'
 import { control } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
+import { schemeInfo } from '../shared/schemes'
 import { DwellButton } from './Dwell'
 
 /**
@@ -130,8 +131,8 @@ export function Tutorial() {
             <p className="eyebrow">
               Шаг {index + 1} из {STEPS.length}
             </p>
-            <h2 className="tutorial__title">{step.title}</h2>
-            <p className="tutorial__text">{step.text}</p>
+            <h2 className="tutorial__title">{step.id === 'move' ? schemeInfo().moveTitle : step.title}</h2>
+            <p className="tutorial__text">{step.id === 'move' ? schemeInfo().moveText : step.text}</p>
             <div className="bar">
               <div className="bar__fill" style={{ width: `${progress * 100}%` }} />
             </div>

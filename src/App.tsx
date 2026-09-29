@@ -8,6 +8,7 @@ import { Hints } from './ui/Hints'
 import { JoystickIndicator, MenuHoldRing } from './ui/JoystickIndicator'
 import { Countdown, HUD, PauseMenu } from './ui/Overlays'
 import { Results } from './ui/Results'
+import { SchemeSwitcher } from './ui/SchemeSwitcher'
 import { StartScreen } from './ui/StartScreen'
 import { Tutorial } from './ui/Tutorial'
 
@@ -49,6 +50,7 @@ export function App() {
       {inGame && <Hints />}
       {(phase === 'playing' || phase === 'tutorial') && <JoystickIndicator />}
       {(phase === 'playing' || phase === 'tutorial') && <MenuHoldRing />}
+      {inGame && <SchemeSwitcher />}
       {menu && <HandCursor />}
     </div>
   )

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { control } from '../shared/controlState'
+import { nextScheme, onSchemeChange, schemeInfo } from '../shared/schemes'
 import { sfx } from '../game/sfx'
 import { useGame, runSeconds } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
@@ -37,6 +38,8 @@ export function HUD() {
   const secrets = useGame((s) => s.secretsFound)
   const secretsTotal = useGame((s) => s.secretsTotal)
   const [time, setTime] = useState(0)
+  const [scheme, setSchemeState] = useState(control.scheme)
+  useEffect(() => onSchemeChange(setSchemeState), [])
 
   useEffect(() => {
     const id = setInterval(() => setTime(runSeconds(useGame.getState())), 250)
@@ -64,14 +67,9 @@ export function HUD() {
         </>
       )}
       <div className="hud__legend">
-        {control.scheme === 'pointer' ? (
-          <>
-            <span>палец — идти</span>
-            <span>ладонь — стоп</span>
-          </>
-        ) : (
-          <span>ладонь — идти</span>
-        )}
+        {schemeInfo(scheme).legend.map((l) => (
+          <span key={l}>{l}</span>
+        ))}
         <span>кулак — прыжок</span>
         <span>щипок левой — повернуть и наклонить</span>
         <span>две ладони — меню</span>
@@ -81,12 +79,8 @@ export function HUD() {
 }
 
 export function PauseMenu() {
-  const [scheme, setScheme] = useState(control.scheme)
-  const toggleScheme = () => {
-    control.scheme = control.scheme === 'pointer' ? 'palm' : 'pointer'
-    control.move.x = control.move.y = 0
-    setScheme(control.scheme)
-  }
+  const [scheme, setSchemeState] = useState(control.scheme)
+  useEffect(() => onSchemeChange(setSchemeState), [])
   return (
     <div className="screen screen--dim">
       <div className="card">
@@ -102,8 +96,8 @@ export function PauseMenu() {
               В лобби
             </DwellButton>
           )}
-          <DwellButton variant="ghost" onActivate={toggleScheme}>
-            Ходьба: {scheme === 'pointer' ? 'палец' : 'ладонь'}
+          <DwellButton variant="ghost" onActivate={nextScheme}>
+            Ходьба: {schemeInfo(scheme).title}
           </DwellButton>
         </div>
       </div>

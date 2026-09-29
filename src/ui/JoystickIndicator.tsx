@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { runtime } from '../game/runtime'
 import { control } from '../shared/controlState'
+import { schemeInfo } from '../shared/schemes'
 
 /**
  * Экранный индикатор ходьбы справа внизу: точка показывает, куда идёт герой.
@@ -28,13 +29,13 @@ export function JoystickIndicator() {
       root.current?.classList.toggle('is-idle', !active)
       root.current?.classList.toggle('is-moving', moving)
       root.current?.classList.toggle('is-locked', runtime.moveLocked)
-      if (dead.current) dead.current.style.display = control.scheme === 'palm' ? '' : 'none'
+      if (dead.current) dead.current.style.display = control.scheme === 'pointer' ? 'none' : ''
 
       const text = runtime.moveLocked
         ? 'стоишь — смени жест'
-        : control.scheme === 'pointer'
-          ? moving ? 'палец — идёт' : active ? 'стоп' : 'покажи пальцем'
-          : 'правая ладонь'
+        : control.scheme === 'palm'
+          ? 'правая ладонь'
+          : moving ? `${schemeInfo().title.toLowerCase()} — идёт` : active ? 'стоп' : 'вытяни палец'
       if (text !== lastText && label.current) {
         label.current.textContent = text
         lastText = text

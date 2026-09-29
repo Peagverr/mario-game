@@ -306,3 +306,17 @@ body {
 @keyframes pop-in { from { transform: scale(1.3); } }
 .bridge-sign { border-color: var(--coral); }
 .bridge-sign.is-ok { border-color: var(--teal); background: #e9fbf8; }
+
+/* ---------- Переключатель схемы ходьбы (мышкой, для тестов) ---------- */
+.scheme-switch {
+  position: absolute; right: 16px; bottom: 170px; z-index: 20;
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  background: rgba(255, 253, 248, 0.9); border: 2px solid var(--ink); border-radius: 12px; padding: 6px;
+}
+.scheme-switch__label { font-size: 11px; font-weight: 600; color: var(--ink-soft); padding: 0 4px; }
+.scheme-switch button {
+  font: 600 12px var(--font-body); color: var(--ink); text-align: left;
+  background: transparent; border: 1.5px solid transparent; border-radius: 8px; padding: 4px 8px; cursor: pointer;
+}
+.scheme-switch button:hover { border-color: var(--ink-soft); }
+.scheme-switch button.is-on { background: var(--star); border-color: var(--ink); }

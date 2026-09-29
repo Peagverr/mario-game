@@ -81,9 +81,9 @@ export function detectCandidates(c: ErrorContext): Hint[] {
     out.push({
       code: 'no-hands',
       hand: 'right',
-      text: c.scheme === 'pointer'
-        ? 'Подними правую руку на уровень груди и покажи указательным пальцем, куда идти'
-        : 'Подними правую ладонь перед камерой на уровне груди — это джойстик героя',
+      text: c.scheme === 'palm'
+        ? 'Подними правую ладонь перед камерой на уровне груди — это джойстик героя'
+        : 'Подними правую руку на уровень груди и вытяни указательный палец',
     })
   }
 
@@ -107,7 +107,7 @@ export function detectCandidates(c: ErrorContext): Hint[] {
     const othersExtended = [2, 3, 4].filter((i) => r.curls[i] === 'extended')
     const othersCurled = [2, 3, 4].every((i) => r.curls[i] === 'curled')
 
-    if (c.scheme === 'pointer' && !r.fist && !r.openPalm) {
+    if (c.scheme !== 'palm' && !r.fist && !r.openPalm) {
       if (r.curls[1] === 'extended' && othersExtended.length >= 2) {
         // Показывает пальцем, но остальные пальцы тоже выпрямлены.
         out.push({
@@ -123,7 +123,7 @@ export function detectCandidates(c: ErrorContext): Hint[] {
           landmarks: FINGER_POINTS[1],
           text: 'Указательный согнут наполовину: выпрями его — идти, согни полностью — прыжок',
         })
-      } else if (r.pointing && r.pointLen < POINT_MIN_LEN) {
+      } else if (c.scheme === 'pointer' && r.pointing && r.pointLen < POINT_MIN_LEN) {
         out.push({
           code: 'point-camera',
           hand: 'right',
@@ -145,7 +145,7 @@ export function detectCandidates(c: ErrorContext): Hint[] {
       })
     }
 
-    if (c.scheme === 'palm' && c.joystickReach > 1.8) {
+    if (c.scheme !== 'pointer' && c.joystickReach > 1.8) {
       out.push({ code: 'joystick-far', hand: 'right', text: 'Рука слишком далеко от центра — для бега хватит небольшого сдвига ладони' })
     }
   }

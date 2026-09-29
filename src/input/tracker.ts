@@ -67,6 +67,9 @@ const s = {
   lastPointAt: 0,
   /** Направление, «запомненное» на время кулака. */
   latchedDir: null as null | { x: number; y: number },
+  /** Палец-точка: центр джойстика (где кончик пальца был, когда начал показывать) и когда палец видели. */
+  tipCenter: null as null | { x: number; y: number },
+  lastTipAt: 0,
   lastHandsAt: 0,
   lastFaceAt: 0,
   onlyLeftSince: 0,
@@ -203,6 +206,7 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     s.lastRightAt = t
   }
   if (control.scheme === 'pointer') applyPointer(next.right, t)
+  else if (control.scheme === 'fingertip') applyFingertip(next.right, t)
   else applyJoystick(next.right)
   applyJump(next.right, t)
   applyGrab(next.left)
@@ -271,6 +275,53 @@ function applyPointer(r: HandState | null, t: number) {
   control.move.y = dir ? dir.y : 0
   control.joystick.x = control.move.x
   control.joystick.y = control.move.y
+}
+
+/**
+ * Палец-точка (идея Абзала): кончик указательного — это джойстик, как ладонь, но точнее.
+ * Начал показывать — там центр; сдвинул кончик — идёшь; раскрыл ладонь или опустил руку — стоп.
+ * Центр сбрасывается, только если палец не показывали дольше 0,8 с — после прыжка он остаётся прежним.
+ */
+function applyFingertip(r: HandState | null, t: number) {
+  control.joystick.active = !!r
+  let dir: { x: number; y: number } | null = null
+  let jx = 0
+  let jy = 0
+
+  if (r?.pointing) {
+    const tip = r.points[8]
+    if (!s.tipCenter || t - s.lastTipAt > 800) s.tipCenter = { x: tip.x, y: tip.y }
+    s.lastTipAt = t
+    const range = r.size * JOYSTICK_RANGE || 0.1
+    let dx = (tip.x - s.tipCenter.x) / range
+    let dy = (tip.y - s.tipCenter.y) / range
+    if (dy > 0) dy *= JOYSTICK_DOWN_GAIN
+    joystickReach = Math.hypot(dx, dy)
+    if (joystickReach > 1) {
+      dx /= joystickReach
+      dy /= joystickReach
+    }
+    jx = dx
+    jy = -dy
+    const mx = shape(dx)
+    const my = shape(-dy)
+    if (mx || my) {
+      dir = { x: mx, y: my }
+      s.lastPointDir = { ...dir }
+      s.lastPointAt = t
+    }
+  } else joystickReach = 0
+
+  // Кулак сразу после движения — прыжок в ту же сторону.
+  if (r?.fist) {
+    if (!s.latchedDir && t - s.lastPointAt < POINT_LATCH_MS) s.latchedDir = { ...s.lastPointDir }
+    if (s.latchedDir) dir = s.latchedDir
+  } else s.latchedDir = null
+
+  control.move.x = dir ? dir.x : 0
+  control.move.y = dir ? dir.y : 0
+  control.joystick.x = jx
+  control.joystick.y = jy
 }
 
 function applyJump(r: HandState | null, t: number) {
