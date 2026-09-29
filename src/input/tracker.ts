@@ -22,7 +22,7 @@ const JOYSTICK_RANGE = 0.5
 /** Сдвиг меньше этой доли зоны не двигает героя — чтобы дрожание руки не считалось ходьбой. */
 const JOYSTICK_DEADZONE = 0.14
 /** Вниз рука двигается хуже (мешают стол и локоть), поэтому вниз нужно меньшее движение. */
-const JOYSTICK_DOWN_GAIN = 1.6
+const JOYSTICK_DOWN_GAIN = 1.3
 /**
  * MediaPipe в этой версии называет руки правильно для нашего (не отзеркаленного) кадра.
  * Если руки снова окажутся перепутаны — поменять на true.
@@ -183,7 +183,10 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
 
   // Правая рука появилась после перерыва — где она сейчас, там и центр джойстика.
   if (next.right) {
-    if (t - s.lastRightAt > 800) s.joyCenter = { x: next.right.palm.x, y: next.right.palm.y }
+    // …но только если рука появилась в середине кадра: у края она чаще всего «вывалилась» и вернулась.
+    const p = next.right.palm
+    const central = p.x > 0.3 && p.x < 0.85 && p.y > 0.25 && p.y < 0.8
+    if (t - s.lastRightAt > 800 && central) s.joyCenter = { x: p.x, y: p.y }
     s.lastRightAt = t
   }
   applyJoystick(next.right)
@@ -217,10 +220,9 @@ function applyJoystick(r: HandState | null) {
   joystickReach = Math.hypot(dx, dy)
   // «Плавающий» центр, как у джойстиков в мобильных играх: увёл руку дальше края зоны —
   // центр подтягивается следом, и возвращать руку издалека не нужно.
+  // Дальше края зоны — просто полный ход. Центр НЕ двигаем: иначе возврат руки в покой
+  // читался как движение в обратную сторону.
   if (joystickReach > 1) {
-    const pull = (joystickReach - 1) / joystickReach
-    s.joyCenter.x += (r.palm.x - s.joyCenter.x) * pull
-    s.joyCenter.y += (r.palm.y - s.joyCenter.y) * pull
     dx /= joystickReach
     dy /= joystickReach
   }

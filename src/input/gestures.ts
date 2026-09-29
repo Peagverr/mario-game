@@ -24,8 +24,10 @@ const EXTENDED_RATIO = 1.5
 const CURLED_RATIO = 1.2
 
 /** Щипок: включается, когда пальцы ближе PINCH_ON, выключается дальше PINCH_OFF (запас против мигания). */
-export const PINCH_ON = 0.4
-export const PINCH_OFF = 0.62
+export const PINCH_ON = 0.38
+export const PINCH_OFF = 0.58
+/** По картинке щипок можно только НАЧАТЬ, и только при явном касании: большой палец часто просто заслоняет указательный. */
+const PINCH_ON_IMAGE = 0.22
 /** Щипок не отпускается, пока пальцы разведены меньше этого времени — один плохой кадр его не оборвёт. */
 const PINCH_RELEASE_MS = 150
 
@@ -98,14 +100,15 @@ export class HandTracker {
     // а на картинке кончики как раз сливаются). Подушки пальцев толстые — сомкнутые кончики не дают ноль.
     const pinchWorld = dist(world[4], world[8]) / (dist(world[0], world[9]) || 1e-6)
     const pinchImage = dist(s[4], s[8]) / (size || 1e-6)
-    const pinchRatio = Math.min(pinchWorld, pinchImage)
+    const pinchRatio = pinchWorld
     // Указательный не должен быть сжат в кулак — иначе кулак с прижатым большим пальцем выглядит как щипок.
     const indexFree = curls[1] !== 'curled'
     if (this.pinching) {
-      if (pinchRatio < PINCH_OFF) this.pinchOpenSince = 0
+      // Отпускание решают только объёмные точки — по картинке щипок «залипал».
+      if (pinchWorld < PINCH_OFF) this.pinchOpenSince = 0
       else if (!this.pinchOpenSince) this.pinchOpenSince = t
       else if (t - this.pinchOpenSince > PINCH_RELEASE_MS) this.pinching = false
-    } else if (pinchRatio < PINCH_ON && indexFree) {
+    } else if (indexFree && (pinchWorld < PINCH_ON || (pinchImage < PINCH_ON_IMAGE && pinchWorld < PINCH_OFF))) {
       this.pinching = true
       this.pinchOpenSince = 0
     }
