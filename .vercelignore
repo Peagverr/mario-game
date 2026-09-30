@@ -1,0 +1,6 @@
+# Vercel сам ставит зависимости и собирает проект (npm install → postinstall копирует MediaPipe → npm run build),
+# поэтому готовую сборку и локальную копию MediaPipe не загружаем.
+node_modules
+dist
+public/mediapipe
+.claude
