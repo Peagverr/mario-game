@@ -36,7 +36,7 @@ export function Results() {
   const next = nextLevel(g.sceneId)
   const errors = Object.entries(g.stats.errors) as [HintCode, number][]
   errors.sort((a, b) => b[1] - a[1])
-  const gestureErrors = (['fist-partial', 'pinch-partial'] as const).reduce((a, c) => a + (g.stats.errors[c] ?? 0), 0)
+  const gestureErrors = (['fist-partial'] as const).reduce((a, c) => a + (g.stats.errors[c] ?? 0), 0)
   const attempts = g.stats.jumps + gestureErrors
   const accuracy = attempts ? Math.round((g.stats.jumps / attempts) * 100) : 100
 

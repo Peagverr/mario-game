@@ -1,5 +1,5 @@
 import type { HandState, Hint, HintCode } from '../shared/controlState'
-import { FINGER_NAMES, FINGER_POINTS, PINCH_OFF, PINCH_ON } from './gestures'
+import { FINGER_NAMES, FINGER_POINTS } from './gestures'
 
 /**
  * «Режим ошибки»: замечаем движения, которые ПОЧТИ правильные, и говорим, что конкретно исправить.
@@ -11,8 +11,6 @@ import { FINGER_NAMES, FINGER_POINTS, PINCH_OFF, PINCH_ON } from './gestures'
  *    на экране одна подсказка, а ушедшая не возвращается несколько секунд.
  */
 
-/** Средняя длина ладони взрослого (запястье → основание среднего пальца), мм. Для «осталось N мм». */
-const HAND_SIZE_MM = 95
 /** Кадр темнее этого — не «темно в комнате», а закрытая камера (шторка, чужая программа). */
 const BLACK_FRAME = 0.03
 
@@ -126,21 +124,12 @@ export function detectCandidates(c: ErrorContext): Hint[] {
     }
   }
 
-  // — Левая рука: щипок —
+  // — Левая рука: щипок. Подсказку «сведи пальцы плотнее» убрали: на тестах она раздражала,
+  // а щипок и так включается уверенно (порог с запасом, см. gestures.ts). —
   const l = c.left
   if (l) {
     const edge = edgeHint(l, 'left')
     if (edge && !out.some((h) => h.code === 'hand-edge')) out.push(edge)
-
-    if (!l.pinching && l.pinchRatio > PINCH_OFF && l.pinchRatio < 0.75 && l.curls[1] !== 'curled') {
-      const mm = Math.max(5, Math.round((l.pinchRatio - PINCH_ON) * HAND_SIZE_MM))
-      out.push({
-        code: 'pinch-partial',
-        hand: 'left',
-        landmarks: [3, 4, 7, 8],
-        text: `Сведи большой и указательный плотнее — осталось примерно ${mm} мм`,
-      })
-    }
   }
 
   return out
@@ -157,7 +146,6 @@ const HOLD_MS: Record<HintCode, number> = {
   dark: 1200,
   'hand-edge': 350,
   'fist-partial': 450,
-  'pinch-partial': 550,
   'wrong-hand': 0,
   'no-hands': 0,
   'hand-turned': 0,
@@ -168,7 +156,7 @@ const HOLD_MS: Record<HintCode, number> = {
 /** Порядок важности: сначала то, без чего ничего не работает. */
 const PRIORITY: HintCode[] = [
   'camera-blocked', 'dark', 'no-face', 'too-close', 'too-far', 'hand-turned', 'no-hands', 'wrong-hand',
-  'hand-edge', 'palm-not-armed', 'fist-partial', 'pinch-partial', 'head-turned',
+  'hand-edge', 'palm-not-armed', 'fist-partial', 'head-turned',
 ]
 
 const MIN_VISIBLE_MS = 1600
@@ -226,7 +214,6 @@ export class HintFilter {
 export const ERROR_ADVICE: Record<HintCode, { title: string; tip: string }> = {
   'camera-blocked': { title: 'Камера не видит', tip: 'Открой шторку камеры и проверь, что её не заняла другая программа.' },
   'fist-partial': { title: 'Неполный кулак', tip: 'Сжимай все четыре пальца разом — как будто хватаешь ручку.' },
-  'pinch-partial': { title: 'Неплотный щипок', tip: 'Соединяй подушечки большого и указательного до касания.' },
   'hand-edge': { title: 'Рука у края кадра', tip: 'Держи руки ближе к груди, в центре кадра.' },
   'palm-not-armed': { title: 'Ладонь не в круге', tip: 'Сначала заведи ладонь в жёлтый круг в окне камеры — тогда герой начнёт слушаться.' },
   'wrong-hand': { title: 'Не та рука', tip: 'Правая — ходьба и прыжок, левая — поворот мира.' },

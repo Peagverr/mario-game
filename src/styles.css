@@ -308,3 +308,4 @@ body {
 /* ---------- Меню: настройки круга-джойстика ---------- */
 .menu__section { margin: 24px 0 0; font: 700 16px var(--font-head); color: var(--ink); }
 .row--tight { margin-top: 10px; }
+.hud__pill--grab { white-space: nowrap; font: 700 16px var(--font-head); background: var(--teal); color: #fff; animation: pop-in 0.25s ease-out; }

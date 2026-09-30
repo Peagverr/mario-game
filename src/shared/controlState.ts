@@ -23,7 +23,6 @@ export type HintCode =
   | 'dark'
   | 'hand-edge'
   | 'fist-partial'
-  | 'pinch-partial'
   | 'wrong-hand'
   | 'no-hands'
   | 'hand-turned'
