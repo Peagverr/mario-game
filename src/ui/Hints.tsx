@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sfx } from '../game/sfx'
 import { control, type Hint } from '../shared/controlState'
-import { speak } from './speech'
 
 const ARROWS: Record<NonNullable<Hint['arrow']>, string> = {
   left: '←',
@@ -12,7 +11,7 @@ const ARROWS: Record<NonNullable<Hint['arrow']>, string> = {
   farther: '↖',
 }
 
-/** Подсказки «режима ошибки»: карточка внизу экрана + звук + голос. */
+/** Подсказки «режима ошибки»: карточка внизу экрана и короткий сигнал. Одна за раз — какую, решает HintFilter. */
 export function Hints() {
   const [hints, setHints] = useState<Hint[]>([])
   const shown = useRef(new Set<string>())
@@ -26,12 +25,8 @@ export function Hints() {
       if (key === last) return
       last = key
       const current = [...control.hints]
-      // Новая подсказка — короткий звук и озвучка (не чаще, чем раз в несколько секунд).
-      const fresh = current.find((h) => !shown.current.has(h.code))
-      if (fresh) {
-        sfx.hint()
-        speak(fresh.text)
-      }
+      // Новая подсказка — короткий сигнал.
+      if (current.some((h) => !shown.current.has(h.code))) sfx.hint()
       shown.current = new Set(current.map((h) => h.code))
       setHints(current)
     }

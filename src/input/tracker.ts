@@ -2,9 +2,11 @@ import { FaceLandmarker, FilesetResolver, GestureRecognizer } from '@mediapipe/t
 import { control, type HandState, type Point } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 import { detectCandidates, HintFilter } from './errors'
-import { HandTracker, POINT_MIN_LEN } from './gestures'
+import { HandTracker } from './gestures'
 import { estimateHead, FACE_PREVIEW_POINTS, yawFromMatrix } from './head'
 import { OneEuro3 } from './oneEuro'
+import { PalmJoystick, type FaceAnchor } from './palmJoystick'
+import { WorldGrab } from './worldGrab'
 
 /**
  * Цикл распознавания: камера → MediaPipe (руки + лицо) → наши правила → `control`.
@@ -17,12 +19,6 @@ const FACE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`
 
-/** Рабочая зона джойстика в размерах ладони: сдвиг на столько = полный ход (~4 см у взрослого). */
-const JOYSTICK_RANGE = 0.5
-/** Сдвиг меньше этой доли зоны не двигает героя — чтобы дрожание руки не считалось ходьбой. */
-const JOYSTICK_DEADZONE = 0.14
-/** Вниз рука двигается хуже (мешают стол и локоть), поэтому вниз нужно меньшее движение. */
-const JOYSTICK_DOWN_GAIN = 1.3
 /**
  * MediaPipe в этой версии называет руки правильно для нашего (не отзеркаленного) кадра.
  * Если руки снова окажутся перепутаны — поменять на true.
@@ -30,19 +26,13 @@ const JOYSTICK_DOWN_GAIN = 1.3
 const SWAP_HANDEDNESS = false
 /** Сколько мс держать щипок, если левую руку на мгновение потеряли. */
 const GRAB_LOST_GRACE_MS = 250
-control.joystick.deadzone = JOYSTICK_DEADZONE
-/** Поворот мира: провести щипком через весь кадр = столько радиан. */
-const GRAB_ROTATE_GAIN = Math.PI * 1.6
-/** Наклон мира: провести щипком через весь кадр по вертикали = столько радиан. */
-const GRAB_PITCH_GAIN = 1.4
-const PITCH_LIMIT = 0.35
+/** Лицо старше этого (мс) не годится, чтобы ставить кольцо ладони. */
+const FACE_FRESH_MS = 600
 /** Две раскрытые ладони столько держать, чтобы открылось меню. */
 const MENU_HOLD_MS = 800
-/** Кулак сжат вскоре после указания — прыгаем в ту же сторону (направление «запоминается»). */
-const POINT_LATCH_MS = 600
-/** Короткий зазор при переходе кулак → палец, чтобы герой не дёргался. */
-const POINT_GAP_MS = 150
 const JUMP_COOLDOWN_MS = 250
+/** Место и размер круга запоминаются в браузере: калибровка в обучении и кнопки в меню. */
+const PALM_SETTINGS_KEY = 'okno.palm.v1'
 
 let recognizer: GestureRecognizer | null = null
 let face: FaceLandmarker | null = null
@@ -52,36 +42,32 @@ let running = false
 const trackers = { left: new HandTracker(), right: new HandTracker() }
 // Голова: быстрее реагирует на движение (эффект окна не должен запаздывать), в покое всё ещё гладко.
 const headFilter = new OneEuro3(1.6, 3)
+// Лицо для кольца ладони: сглажено сильнее, чтобы кольцо в мини-окне не дрожало.
+const faceAnchorFilter = new OneEuro3(1.2, 0.3)
 const hintFilter = new HintFilter()
+/** Ладонь у лица: кольцо-джойстик справа от лица (логика — в palmJoystick.ts). */
+const palmJoy = new PalmJoystick()
+/** Щипок левой: поворот, наклон и приближение мира (логика — в worldGrab.ts). */
+const worldGrab = new WorldGrab()
 
 /** Внутреннее состояние жестов между кадрами. */
 const s = {
-  joyCenter: { x: 0.64, y: 0.62 },
-  /**
-   * Центр ладони-джойстика привязан к ЛИЦУ: хранится смещение от лица в размерах лица.
-   * Откинулся на стуле или сдвинулся — центр едет вместе с тобой, герой сам не пойдёт.
-   * По умолчанию — справа-снизу от лица, где естественно лежит правая рука (перед лицом нельзя — закроет лицо).
-   */
-  palmOffset: { x: 1.1, y: 1.3 },
-  faceCenter: null as null | { x: number; y: number },
-  faceW: 0,
+  /** Лицо в «квадратных» координатах (x·ширина/высота): центр между зрачками и ширина от скулы до скулы. */
+  face: null as FaceAnchor | null,
+  /** Первые шаги обучения: кольцо следует за ладонью, герой стоит. */
+  calibrating: false,
+  /** С какого момента правая рука видна, но ещё не заходила в круг (0 — зашла или руки нет). */
+  palmUnarmedSince: 0,
   wasFist: false,
   lastJump: 0,
-  grab: null as null | { x: number; y: number; yaw: number; pitch: number; size: number; zoom: number },
+  /** Щипок левой идёт и когда левую руку видели в последний раз. */
+  grabbing: false,
+  lastGrabAt: 0,
   pauseSince: 0,
   pauseArmed: true,
-  /** Последнее направление пальца и когда оно было. */
-  lastPointDir: { x: 0, y: 0 },
-  lastPointAt: 0,
-  /** Направление, «запомненное» на время кулака. */
-  latchedDir: null as null | { x: number; y: number },
-  /** Палец-точка: центр джойстика (где кончик пальца был, когда начал показывать) и когда палец видели. */
-  tipCenter: null as null | { x: number; y: number },
-  lastTipAt: 0,
   lastHandsAt: 0,
   lastFaceAt: 0,
   onlyLeftSince: 0,
-  lastRightAt: 0,
   /** Когда левая рука пропала посреди щипка (скорее всего, повернулась ребром к камере). */
   leftLostWhilePinchAt: 0,
   wasLeftPinching: false,
@@ -92,33 +78,68 @@ const s = {
 
 export type TrackerStatus = 'camera' | 'models' | 'ready'
 
-/** Запоминает текущее положение правой ладони как «нулевую точку» джойстика. */
+/** Калибровка круга началась (обучение или «Поставить круг заново»): круг следует за ладонью, герой стоит. */
+export function beginJoystickCalibration() {
+  s.calibrating = true
+}
+
+/** Калибровку закончили или бросили: круг остаётся, где был. */
+export function endJoystickCalibration() {
+  s.calibrating = false
+}
+
+/** «Здесь удобно держать ладонь» — круг встанет туда относительно лица и запомнится. */
 export function calibrateJoystick() {
+  s.calibrating = false
   const r = control.hands.right
-  if (r) setPalmCenter(r.palm, performance.now())
-}
-
-/** Лицо видно недавно — можно считать центр от него. */
-function faceFresh(t: number) {
-  return !!s.faceCenter && s.faceW > 0 && t - s.lastFaceAt < 600
-}
-
-/** Запомнить «где ладонь сейчас — там ноль»: относительно лица, если оно видно. */
-function setPalmCenter(p: { x: number; y: number }, t: number) {
-  s.joyCenter = { x: p.x, y: p.y }
-  if (faceFresh(t)) {
-    const aspect = video ? video.videoWidth / video.videoHeight : 4 / 3
-    s.palmOffset = { x: (p.x - s.faceCenter!.x) / s.faceW, y: (p.y - s.faceCenter!.y) / (s.faceW * aspect) }
+  const f = faceAnchor(performance.now())
+  if (r && f) {
+    palmJoy.calibrate(toSquare(r.palm), f)
+    savePalmSettings()
   }
 }
 
-/** Текущий центр ладони-джойстика: от лица, если оно видно, иначе — неподвижная точка кадра. */
-function palmCenter(t: number) {
-  if (!faceFresh(t)) return { ...s.joyCenter, anchored: false }
-  const aspect = video ? video.videoWidth / video.videoHeight : 4 / 3
-  const c = { x: s.faceCenter!.x + s.palmOffset.x * s.faceW, y: s.faceCenter!.y + s.palmOffset.y * s.faceW * aspect }
-  s.joyCenter = { x: c.x, y: c.y }
-  return { ...c, anchored: true }
+/** «Круг меньше / больше» из меню. Возвращает новый размер относительно обычного (1 = 100%). */
+export function resizePalmRing(factor: number) {
+  palmJoy.resize(factor)
+  savePalmSettings()
+  return palmJoy.ringScale
+}
+
+/** Размер круга относительно обычного (1 = 100%). */
+export function palmRingScale() {
+  return palmJoy.ringScale
+}
+
+function savePalmSettings() {
+  const { offsetX, offsetY, dead, full } = palmJoy.params
+  try {
+    localStorage.setItem(PALM_SETTINGS_KEY, JSON.stringify({ offsetX, offsetY, dead, full }))
+  } catch {
+    // Хранилище недоступно — настройки просто не запомнятся.
+  }
+}
+
+// Место и размер круга с прошлого раза (испорченные значения palmJoy.restore не примет).
+try {
+  const saved = JSON.parse(localStorage.getItem(PALM_SETTINGS_KEY) ?? 'null')
+  if (saved && typeof saved === 'object') palmJoy.restore(saved)
+} catch {
+  // Нет сохранённого — круг по умолчанию.
+}
+
+function videoAspect() {
+  return video && video.videoHeight ? video.videoWidth / video.videoHeight : 4 / 3
+}
+
+/** Координаты кадра → «квадратные», где расстояния по x и y сравнимы. */
+function toSquare(p: { x: number; y: number }) {
+  return { x: p.x * videoAspect(), y: p.y }
+}
+
+/** Лицо, если его видно сейчас. */
+function faceAnchor(t: number): FaceAnchor | null {
+  return s.face && t - s.lastFaceAt < FACE_FRESH_MS ? s.face : null
 }
 
 async function createTasks() {
@@ -228,143 +249,48 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     if (!s.onlyLeftSince) s.onlyLeftSince = t
   } else s.onlyLeftSince = 0
 
-  // Правая рука появилась после перерыва — где она сейчас, там и центр джойстика.
-  if (next.right) {
-    // …но только если рука появилась в середине кадра: у края она чаще всего «вывалилась» и вернулась.
-    const p = next.right.palm
-    const central = p.x > 0.3 && p.x < 0.85 && p.y > 0.25 && p.y < 0.8
-    if (t - s.lastRightAt > 800 && central) setPalmCenter(p, t)
-    s.lastRightAt = t
-  }
-  if (control.scheme === 'pointer') applyPointer(next.right, t)
-  else if (control.scheme === 'fingertip') applyFingertip(next.right, t)
-  else applyJoystick(next.right)
-  applyJump(next.right, t)
-  applyGrab(next.left)
+  // Меню — раньше ходьбы: пока держишь две ладони (меню открывается), ладонь у лица не ведёт героя.
   applyMenu(found.length === 2 ? [next.left, next.right] : [], t)
+  const phase = useGame.getState().phase
+  const playable = phase === 'playing' || phase === 'tutorial' || phase === 'countdown'
+  // «Поставить круг заново» идёт прямо в меню: там джойстик не выключаем, круг следует за ладонью.
+  applyPalm(next.right, t, !playable && !s.calibrating, s.pauseSince > 0)
+  applyJump(next.right, t)
+  applyGrab(next.left, t)
   applyCursor(next.right ?? next.left)
 }
 
-function shape(v: number) {
-  const a = Math.abs(v)
-  if (a < JOYSTICK_DEADZONE) return 0
-  return Math.sign(v) * Math.min(1, (a - JOYSTICK_DEADZONE) / (1 - JOYSTICK_DEADZONE))
-}
-
-let joystickReach = 0
-function applyJoystick(r: HandState | null) {
-  const t = performance.now()
-  const c = palmCenter(t)
-  control.joystick.centerX = c.x
-  control.joystick.centerY = c.y
-  control.joystick.faceAnchored = c.anchored
-  control.joystick.radius = r ? r.size * JOYSTICK_RANGE : 0
-  control.joystick.active = !!r
-  if (!r) {
-    control.move.x = 0
-    control.move.y = 0
-    control.joystick.x = 0
-    control.joystick.y = 0
-    joystickReach = 0
-    return
-  }
-  const range = r.size * JOYSTICK_RANGE || 0.1
-  let dx = (r.palm.x - c.x) / range
-  let dy = (r.palm.y - c.y) / range
-  if (dy > 0) dy *= JOYSTICK_DOWN_GAIN
-  joystickReach = Math.hypot(dx, dy)
-  // «Плавающий» центр, как у джойстиков в мобильных играх: увёл руку дальше края зоны —
-  // центр подтягивается следом, и возвращать руку издалека не нужно.
-  // Дальше края зоны — просто полный ход. Центр НЕ двигаем: иначе возврат руки в покой
-  // читался как движение в обратную сторону.
-  if (joystickReach > 1) {
-    dx /= joystickReach
-    dy /= joystickReach
-  }
-  control.move.x = shape(dx)
-  control.move.y = shape(-dy)
-  control.joystick.x = dx
-  control.joystick.y = -dy
-}
-
-/** Ходьба пальцем: показываешь — идёт туда, раскрыл ладонь или опустил руку — стоит. */
-function applyPointer(r: HandState | null, t: number) {
-  control.joystick.active = !!r
-  joystickReach = 0
-  let dir: { x: number; y: number } | null = null
-
-  if (r?.pointing && r.pointLen > POINT_MIN_LEN) {
-    dir = r.pointDir
-    s.lastPointDir = { ...r.pointDir }
-    s.lastPointAt = t
-  }
-  // Кулак сразу после указания — прыжок в ту же сторону: направление держим, пока кулак сжат.
-  if (r?.fist) {
-    if (!s.latchedDir && t - s.lastPointAt < POINT_LATCH_MS) s.latchedDir = { ...s.lastPointDir }
-    if (s.latchedDir) dir = s.latchedDir
-  } else {
-    s.latchedDir = null
-    // Переход кулак → палец длится пару кадров — не останавливаем героя на это мгновение.
-    if (!dir && r && !r.openPalm && t - s.lastPointAt < POINT_GAP_MS) dir = s.lastPointDir
-  }
-
-  control.move.x = dir ? dir.x : 0
-  control.move.y = dir ? dir.y : 0
-  control.joystick.x = control.move.x
-  control.joystick.y = control.move.y
-}
-
 /**
- * Палец-точка (идея Абзала): кончик указательного — это джойстик, как ладонь, но точнее.
- * Начал показывать — там центр; сдвинул кончик — идёшь; раскрыл ладонь или опустил руку — стоп.
- * Центр сбрасывается, только если палец не показывали дольше 0,8 с — после прыжка он остаётся прежним.
+ * Ладонь у лица (идея Абзала): справа от лица — кольцо, его видно в мини-окне камеры.
+ * Пока ладонь не побывала в центре — герой стоит; вышла из центра — идёт туда. Подробно — в palmJoystick.ts.
+ * suspended — меню открыто или сейчас не игра; menuGesture — две ладони раскрыты, меню открывается.
  */
-function applyFingertip(r: HandState | null, t: number) {
-  control.joystick.active = !!r
-  control.joystick.faceAnchored = false
-  control.joystick.radius = r?.pointing && s.tipCenter ? r.size * JOYSTICK_RANGE : 0
-  if (s.tipCenter) {
-    control.joystick.centerX = s.tipCenter.x
-    control.joystick.centerY = s.tipCenter.y
-  }
-  let dir: { x: number; y: number } | null = null
-  let jx = 0
-  let jy = 0
-
-  if (r?.pointing) {
-    const tip = r.points[8]
-    if (!s.tipCenter || t - s.lastTipAt > 800) s.tipCenter = { x: tip.x, y: tip.y }
-    s.lastTipAt = t
-    const range = r.size * JOYSTICK_RANGE || 0.1
-    let dx = (tip.x - s.tipCenter.x) / range
-    let dy = (tip.y - s.tipCenter.y) / range
-    if (dy > 0) dy *= JOYSTICK_DOWN_GAIN
-    joystickReach = Math.hypot(dx, dy)
-    if (joystickReach > 1) {
-      dx /= joystickReach
-      dy /= joystickReach
-    }
-    jx = dx
-    jy = -dy
-    const mx = shape(dx)
-    const my = shape(-dy)
-    if (mx || my) {
-      dir = { x: mx, y: my }
-      s.lastPointDir = { ...dir }
-      s.lastPointAt = t
-    }
-  } else joystickReach = 0
-
-  // Кулак сразу после движения — прыжок в ту же сторону.
-  if (r?.fist) {
-    if (!s.latchedDir && t - s.lastPointAt < POINT_LATCH_MS) s.latchedDir = { ...s.lastPointDir }
-    if (s.latchedDir) dir = s.latchedDir
-  } else s.latchedDir = null
-
-  control.move.x = dir ? dir.x : 0
-  control.move.y = dir ? dir.y : 0
-  control.joystick.x = jx
-  control.joystick.y = jy
+function applyPalm(r: HandState | null, t: number, suspended: boolean, menuGesture: boolean) {
+  const st = palmJoy.update({
+    t,
+    palm: r ? toSquare(r.palm) : null,
+    face: faceAnchor(t),
+    suspended,
+    calibrating: s.calibrating,
+    holdStill: menuGesture,
+  })
+  control.move.x = st.move.x
+  control.move.y = st.move.y
+  const j = control.joystick
+  const aspect = videoAspect()
+  j.centerX = st.center.x / aspect
+  j.centerY = st.center.y
+  j.radius = st.full
+  j.deadRadius = st.dead
+  j.faceAnchored = st.faceAnchored
+  j.armed = st.armed
+  j.calibrating = s.calibrating && !suspended
+  // В мини-окне кольцо прячем и в меню, и пока оно открывается.
+  j.suspended = suspended || menuGesture
+  j.sector = st.sector
+  // Рука видна, а в круг не заходила — если так и держать, подскажем, куда её завести.
+  if (r && !st.armed && !j.suspended && !s.calibrating) s.palmUnarmedSince ||= t
+  else s.palmUnarmedSince = 0
 }
 
 function applyJump(r: HandState | null, t: number) {
@@ -378,27 +304,29 @@ function applyJump(r: HandState | null, t: number) {
   s.wasFist = fist
 }
 
-let lastGrabAt = 0
-function applyGrab(l: HandState | null) {
-  const t = performance.now()
+/** Щипок левой держит мир: поворот, наклон, приближение (с замком оси — см. worldGrab.ts). */
+function applyGrab(l: HandState | null, t: number) {
   // Руку на мгновение потеряли посреди щипка — не бросаем мир, ждём.
-  if (!l && s.grab && t - lastGrabAt < GRAB_LOST_GRACE_MS) return
+  if (!l && s.grabbing && t - s.lastGrabAt < GRAB_LOST_GRACE_MS) return
   const pinching = !!l?.pinching
   control.view.grabbing = pinching
   if (!l || !pinching) {
-    s.grab = null
+    s.grabbing = false
+    control.view.mode = ''
     return
   }
-  lastGrabAt = t
-  const x = (l.points[4].x + l.points[8].x) / 2
-  const y = (l.points[4].y + l.points[8].y) / 2
-  if (!s.grab) s.grab = { x, y, yaw: control.view.yaw, pitch: control.view.pitch, size: l.size, zoom: control.view.zoom }
-  control.view.yaw = s.grab.yaw + (x - s.grab.x) * GRAB_ROTATE_GAIN
-  // «Схватил мир и потянул вниз» — дальний край мира опускается, смотрим сверху; вверх — сбоку.
-  control.view.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, s.grab.pitch + (y - s.grab.y) * GRAB_PITCH_GAIN))
-  // Рука ближе к камере → ладонь крупнее → приближаем мир.
-  const k = Math.pow(l.size / (s.grab.size || 1e-6), 1.6)
-  control.view.zoom = Math.min(1.8, Math.max(0.6, s.grab.zoom * k))
+  s.lastGrabAt = t
+  const p = { x: (l.points[4].x + l.points[8].x) / 2, y: (l.points[4].y + l.points[8].y) / 2, size: l.size }
+  if (!s.grabbing) {
+    const v = control.view
+    worldGrab.start(p, { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom }, videoAspect())
+    s.grabbing = true
+  }
+  const v = worldGrab.move(p)
+  control.view.yaw = v.yaw
+  control.view.pitch = v.pitch
+  control.view.zoom = v.zoom
+  control.view.mode = worldGrab.axis ?? ''
 }
 
 /**
@@ -443,9 +371,17 @@ function processFace(res: ReturnType<FaceLandmarker['detectForVideo']>, t: numbe
   }
   s.lastFaceAt = t
   const points = lm.map(mirror)
-  // Центр лица — между зрачками; ширина — от скулы до скулы (точки 234 и 454).
-  s.faceCenter = { x: (points[468].x + points[473].x) / 2, y: (points[468].y + points[473].y) / 2 }
-  s.faceW = Math.abs(points[454].x - points[234].x)
+  // Кольцо ладони привязано к лицу: центр — между зрачками, ширина — от скулы до скулы (точки 234 и 454).
+  const aspect = videoAspect()
+  const f = faceAnchorFilter.filter(
+    {
+      x: ((points[468].x + points[473].x) / 2) * aspect,
+      y: (points[468].y + points[473].y) / 2,
+      z: Math.abs(points[454].x - points[234].x) * aspect,
+    },
+    t,
+  )
+  s.face = { x: f.x, y: f.y, w: f.z }
   const m = res.facialTransformationMatrixes?.[0]?.data
   const yaw = m ? yawFromMatrix(m) : 0
   const h = headFilter.filter(estimateHead(points, video!.videoWidth, video!.videoHeight, yaw), t)
@@ -477,13 +413,13 @@ function updateHints(t: number) {
     right: control.hands.right,
     head: control.head,
     brightness: control.tracking.brightness,
-    joystickReach,
-    scheme: control.scheme,
     noHandsMs: t - s.lastHandsAt,
     noFaceMs: t - s.lastFaceAt,
     onlyLeftMs: s.onlyLeftSince ? t - s.onlyLeftSince : 0,
     leftLostWhilePinchMs: s.leftLostWhilePinchAt ? t - s.leftLostWhilePinchAt : 0,
+    palmUnarmedMs: s.palmUnarmedSince ? t - s.palmUnarmedSince : 0,
     wantsHands: active,
+    inTutorial: phase === 'tutorial',
   })
   const { hints, appeared } = hintFilter.update(candidates, t)
   control.hints = hints

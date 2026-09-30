@@ -13,6 +13,19 @@
   --shadow: 0 6px 0 var(--ink);
   --font-head: 'Unbounded', system-ui, sans-serif;
   --font-body: 'Onest', system-ui, sans-serif;
+  /*
+   * Слои интерфейса. 3D-таблички в мире (drei <Html>) получают z-index 0–10 —
+   * всё, что ниже, всегда поверх них: угол с камерой, подсказки, меню.
+   */
+  --z-hud: 20;
+  --z-hints: 25;
+  --z-float: 30;
+  --z-screen: 40;
+  --z-cursor: 50;
+  /* Ширина угла с камерой (отступ + рамка + картинка): подсказки на него не заезжают. */
+  --cam-w: 320px;
+  --cam-h: 240px;
+  --corner-w: calc(var(--cam-w) + 34px);
 }
 
 * { box-sizing: border-box; }
@@ -30,10 +43,13 @@ body {
 
 /* ---------- Карточки и экраны ---------- */
 .screen {
-  position: absolute; inset: 0;
+  position: absolute; inset: 0; z-index: var(--z-screen);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
   padding: 16px;
 }
+/* Меню и итоги: таблички из 3D-мира не просвечивают поверх. */
+.app--menu .level-sign,
+.app--menu .portal-sign { visibility: hidden; }
 .screen--dim { background: rgba(29, 35, 64, 0.35); backdrop-filter: blur(3px); }
 .screen--start { background: linear-gradient(180deg, rgba(111,184,255,0.25), rgba(255,227,191,0.1)); }
 
@@ -132,7 +148,7 @@ body {
 .dwell-btn__label { position: relative; }
 
 .hand-cursor {
-  position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none;
+  position: fixed; left: 0; top: 0; z-index: var(--z-cursor); pointer-events: none;
   width: 34px; height: 34px; margin: -17px 0 0 -17px;
   border-radius: 50%;
   border: 4px solid var(--ink);
@@ -144,7 +160,7 @@ body {
 
 /* ---------- Обучение ---------- */
 .tutorial {
-  position: absolute; left: 50%; top: 20px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 20px; transform: translateX(-50%); z-index: var(--z-float);
   width: min(560px, calc(100% - 32px));
   display: flex; flex-direction: column; align-items: center; gap: 12px;
 }
@@ -161,7 +177,7 @@ body {
 
 /* ---------- Отсчёт ---------- */
 .countdown {
-  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  position: absolute; inset: 0; z-index: var(--z-float); display: grid; place-items: center; pointer-events: none;
   font: 800 clamp(90px, 18vw, 180px) var(--font-head);
   color: var(--star);
   -webkit-text-stroke: 6px var(--ink);
@@ -171,7 +187,7 @@ body {
 @keyframes pop { 0% { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } 100% { opacity: 0.85; } }
 
 /* ---------- HUD ---------- */
-.hud { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; gap: 10px; align-items: flex-start; pointer-events: none; }
+.hud { position: absolute; top: 16px; left: 16px; right: 16px; z-index: var(--z-hud); display: flex; gap: 10px; align-items: flex-start; pointer-events: none; }
 .hud__pill {
   display: flex; align-items: baseline; gap: 6px;
   background: var(--paper); border: 3px solid var(--ink); border-radius: 999px; box-shadow: 0 4px 0 var(--ink);
@@ -185,26 +201,27 @@ body {
   padding: 3px 10px; font-size: 13px;
 }
 
-/* ---------- Мини-окно камеры ---------- */
+/* ---------- Мини-окно камеры (для ладони у лица — ещё и пульт) ---------- */
 .cam-preview {
-  position: absolute; left: 16px; bottom: 16px;
+  position: absolute; left: 16px; bottom: 16px; z-index: var(--z-hud);
   background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink);
   padding: 6px; overflow: hidden;
 }
-.cam-preview canvas { display: block; width: 256px; height: 192px; border-radius: 12px; background: var(--ink); }
-.cam-preview__labels { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 2px 2px; max-width: 256px; }
+.cam-preview canvas { display: block; width: var(--cam-w); height: var(--cam-h); border-radius: 12px; background: var(--ink); }
+.cam-preview__labels { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 2px 2px; max-width: var(--cam-w); }
 .tag { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; color: #fff; }
 .tag--right { background: var(--coral); }
 .tag--left { background: var(--teal); }
 .cam-preview__fps { font-size: 11px; color: var(--ink-soft); margin-left: auto; align-self: center; }
 
-/* ---------- Подсказки «режима ошибки» ---------- */
+/* ---------- Подсказки «режима ошибки»: правее угла с камерой, на него не заезжают ---------- */
 .hints {
-  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  position: absolute; bottom: 24px; left: calc(var(--corner-w) + 16px); right: 16px; z-index: var(--z-hints);
   display: flex; flex-direction: column; gap: 8px; align-items: center;
-  width: min(620px, calc(100% - 320px)); pointer-events: none;
+  pointer-events: none;
 }
 .hint {
+  max-width: 620px;
   display: flex; align-items: center; gap: 12px;
   background: var(--paper); border: 3px solid var(--ink); border-left-width: 10px; border-radius: 16px;
   box-shadow: 0 4px 0 var(--ink);
@@ -232,45 +249,26 @@ body {
 .board li span { display: inline-block; min-width: 150px; }
 .board li.is-me { font-weight: 700; color: var(--coral); }
 
+/* Небольшой экран: угол с камерой поменьше, чтобы не закрывать полэкрана. */
+@media (max-width: 1099px), (max-height: 700px) {
+  :root { --cam-w: 240px; --cam-h: 180px; }
+}
 @media (max-width: 720px) {
+  :root { --cam-w: 160px; --cam-h: 120px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .results__cols { grid-template-columns: 1fr; }
-  .cam-preview canvas { width: 160px; height: 120px; }
-  .hints { width: calc(100% - 32px); bottom: 190px; }
+  /* Узко: подсказки над углом с камерой, а не рядом (--corner-h ставит мини-окно по своей высоте). */
+  .hints { left: 16px; right: 16px; bottom: calc(var(--corner-h, 0px) + 32px); }
   .hud__legend { display: none; }
 }
 
-/* ---------- Индикатор джойстика ---------- */
-.joystick {
-  position: absolute; right: 24px; bottom: 24px;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  pointer-events: none; transition: opacity 0.2s;
-}
-.joystick.is-idle { opacity: 0.45; }
-.joystick__ring {
-  position: relative; width: 104px; height: 104px; border-radius: 50%;
-  background: rgba(255, 253, 248, 0.75); border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink);
-  display: grid; place-items: center;
-}
-.joystick__dead { position: absolute; border-radius: 50%; border: 2px dashed var(--ink-soft); }
-.joystick__knob {
-  position: absolute; width: 34px; height: 34px; border-radius: 50%;
-  background: var(--paper); border: 3px solid var(--ink);
-  transition: background 0.1s;
-}
-.joystick.is-moving .joystick__knob { background: var(--coral); }
-.joystick__label {
-  font-size: 12px; font-weight: 600; background: rgba(255, 253, 248, 0.85);
-  border: 2px solid var(--ink); border-radius: 99px; padding: 2px 8px;
-}
+/* ---------- Замеры под мини-окном (адрес с ?debug) ---------- */
 .cam-preview__debug { flex-basis: 100%; font: 11px ui-monospace, monospace; color: var(--ink); }
-
-.joystick.is-locked .joystick__knob { background: var(--star); }
 
 /* ---------- Кольцо «открываю меню» (две ладони) ---------- */
 .menu-hold {
   --p: 0;
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: var(--z-float);
   display: grid; place-items: center; pointer-events: none; opacity: 0; transition: opacity 0.15s;
 }
 .menu-hold__ring {
@@ -307,16 +305,6 @@ body {
 .bridge-sign { border-color: var(--coral); }
 .bridge-sign.is-ok { border-color: var(--teal); background: #e9fbf8; }
 
-/* ---------- Переключатель схемы ходьбы (мышкой, для тестов) ---------- */
-.scheme-switch {
-  position: absolute; right: 16px; bottom: 170px; z-index: 20;
-  display: flex; flex-direction: column; align-items: stretch; gap: 4px;
-  background: rgba(255, 253, 248, 0.9); border: 2px solid var(--ink); border-radius: 12px; padding: 6px;
-}
-.scheme-switch__label { font-size: 11px; font-weight: 600; color: var(--ink-soft); padding: 0 4px; }
-.scheme-switch button {
-  font: 600 12px var(--font-body); color: var(--ink); text-align: left;
-  background: transparent; border: 1.5px solid transparent; border-radius: 8px; padding: 4px 8px; cursor: pointer;
-}
-.scheme-switch button:hover { border-color: var(--ink-soft); }
-.scheme-switch button.is-on { background: var(--star); border-color: var(--ink); }
+/* ---------- Меню: настройки круга-джойстика ---------- */
+.menu__section { margin: 24px 0 0; font: 700 16px var(--font-head); color: var(--ink); }
+.row--tight { margin-top: 10px; }

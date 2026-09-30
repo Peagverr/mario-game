@@ -11,15 +11,15 @@ import { sfx } from '../../sfx'
 import { toonGradient } from '../../toon'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
-import { level2, type Courtyard } from './levelData'
+import { courtyardWalls, level2, SECRET_STAR_HEIGHT, SEEN_POINTS, starSamplePoints, WALL_T, type Courtyard } from './levelData'
 
 /**
  * Уровень 2 «Загляни». Фишка — голова: тайные звёзды спрятаны в двориках за высокими стенами.
  * С обычного ракурса внутрь не видно; подними голову (эффект окна) или наклони мир щипком —
- * как только звезду стало ВИДНО с камеры, она засчитана и прилетает к герою.
+ * как только звезду стало ВИДНО с камеры (хотя бы половину), она засчитана и прилетает к герою.
+ * Размеры двориков и высота звезды проверены тестом level2.test.ts: в покое не видно, +7 см головы — видно.
  */
 
-const WALL_T = 0.35
 const SECRET_COLOR = palette.teal
 /** Сколько секунд звезду должно быть видно, чтобы она засчиталась (защита от случайного мелькания). */
 const SEEN_S = 0.25
@@ -39,7 +39,7 @@ export function Level2() {
       {level2.courtyards.map((c, i) => (
         <group key={i}>
           <CourtyardWalls c={c} />
-          <SecretStar position={[c.x, c.top + 1.1, c.z]} />
+          <SecretStar position={[c.x, c.top + SECRET_STAR_HEIGHT, c.z]} />
         </group>
       ))}
       <Stars positions={level2.stars} />
@@ -49,7 +49,7 @@ export function Level2() {
         <div className="level-sign">
           <b>Загляни</b>
           <span>В двориках за стенами спрятаны тайные звёзды.</span>
-          <span>Подними голову — загляни через стену. Увидел звезду — она твоя!</span>
+          <span>Подними голову — загляни через стену. Или потяни щипком левой вниз. Увидел звезду — она твоя!</span>
         </div>
       </Html>
       <Player spawn={level2.spawn} killY={level2.killY} />
@@ -59,16 +59,9 @@ export function Level2() {
 
 /** Четыре стены вокруг дворика: снаружи внутрь не попасть — только заглянуть сверху. */
 function CourtyardWalls({ c }: { c: Courtyard }) {
-  const half = c.size / 2
-  const walls: { pos: [number, number, number]; size: [number, number, number] }[] = [
-    { pos: [0, c.height / 2, -half], size: [c.size + WALL_T, c.height, WALL_T] },
-    { pos: [0, c.height / 2, half], size: [c.size + WALL_T, c.height, WALL_T] },
-    { pos: [-half, c.height / 2, 0], size: [WALL_T, c.height, c.size] },
-    { pos: [half, c.height / 2, 0], size: [WALL_T, c.height, c.size] },
-  ]
   return (
     <RigidBody type="fixed" colliders={false} position={[c.x, c.top, c.z]}>
-      {walls.map((w, i) => (
+      {courtyardWalls(c).map((w, i) => (
         <group key={i}>
           <CuboidCollider args={[w.size[0] / 2, w.size[1] / 2, w.size[2] / 2]} position={w.pos} />
           <RoundedBox args={w.size} radius={0.1} position={w.pos} castShadow receiveShadow>
@@ -96,9 +89,15 @@ function starGeometry() {
 }
 
 const camPos = new Vector3()
-const toStar = new Vector3()
+const camDir = new Vector3()
+const camRight = new Vector3()
+const toPoint = new Vector3()
+const UP = new Vector3(0, 1, 0)
 
-/** Тайная звезда: засчитывается, когда её видно с камеры (луч от камеры до звезды ничем не перекрыт). */
+/**
+ * Тайная звезда: засчитывается, когда её видно с камеры хотя бы наполовину — из шести точек (центр и пять лучей)
+ * луч от камеры не упирается в стену у трёх. Видно меньше — звезда пульсирует: «почти, подними голову ещё».
+ */
 function SecretStar({ position }: { position: [number, number, number] }) {
   const [state, setState] = useState<'hidden' | 'flying' | 'done'>('hidden')
   const group = useRef<Group>(null)
@@ -118,15 +117,25 @@ function SecretStar({ position }: { position: [number, number, number] }) {
       g.position.y = Math.sin(clock.elapsedTime * 2.5) * 0.12
       if (useGame.getState().phase !== 'playing' || runtime.playerPos.distanceTo(star) > SEARCH_RADIUS) {
         seen.current = 0
+        g.scale.setScalar(1)
         return
       }
       camera.getWorldPosition(camPos)
-      toStar.copy(star).sub(camPos)
-      const dist = toStar.length()
-      toStar.divideScalar(dist)
-      const ray = new rapier.Ray(camPos, toStar)
-      const hit = world.castRay(ray, dist - 0.45, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, runtime.playerBody ?? undefined)
-      seen.current = hit ? Math.max(0, seen.current - dt * 2) : seen.current + dt
+      camera.getWorldDirection(camDir)
+      camRight.crossVectors(camDir, UP).normalize()
+      let visible = 0
+      for (const p of starSamplePoints([star.x, star.y, star.z], [camRight.x, camRight.y, camRight.z])) {
+        toPoint.set(p[0], p[1], p[2]).sub(camPos)
+        const dist = toPoint.length()
+        toPoint.divideScalar(dist)
+        const ray = new rapier.Ray(camPos, toPoint)
+        const hit = world.castRay(ray, dist - 0.05, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, runtime.playerBody ?? undefined)
+        if (!hit) visible++
+      }
+      const enough = visible >= SEEN_POINTS
+      seen.current = enough ? seen.current + dt : Math.max(0, seen.current - dt * 2)
+      // Видно, но меньше половины — пульсирует, чтобы было понятно: ещё чуть-чуть.
+      g.scale.setScalar(visible > 0 && !enough ? 1 + 0.2 * Math.abs(Math.sin(clock.elapsedTime * 9)) : 1)
       if (seen.current > SEEN_S) {
         setState('flying')
         const s = useGame.getState()

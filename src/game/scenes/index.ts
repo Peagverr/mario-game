@@ -23,7 +23,7 @@ export type LevelInfo = {
 }
 
 export const LEVELS: LevelInfo[] = [
-  { id: 'level1', title: 'Острова', feature: 'палец и прыжки', color: '#ffd23f', component: Level1 },
+  { id: 'level1', title: 'Острова', feature: 'ходьба и прыжки', color: '#ffd23f', component: Level1 },
   { id: 'level2', title: 'Загляни', feature: 'двигай головой', color: '#2ec4b6', component: Level2 },
   { id: 'level3', title: 'Поверни мир', feature: 'щипок левой рукой', color: '#ff5a5f', component: Level3 },
 ]

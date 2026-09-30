@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { sfx } from '../game/sfx'
-import { calibrateJoystick } from '../input/tracker'
+import { beginJoystickCalibration, calibrateJoystick, endJoystickCalibration } from '../input/tracker'
 import { control } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
-import { schemeInfo } from '../shared/schemes'
 import { DwellButton } from './Dwell'
 
 /**
@@ -36,16 +35,17 @@ const STEPS: Step[] = [
       hold((control.head.visible && control.head.z > 0.33 && control.head.z < 1.15) || control.devKeyboard, c, dt, 800),
   },
   {
+    // Калибровка: там, где руке удобно, встанет круг-джойстик.
     id: 'palm',
-    title: 'Раскрой правую ладонь',
-    text: 'На уровне груди, пальцы вверх. Раскрытая ладонь — это «стоп»: герой стоит.',
+    title: 'Подними правую ладонь',
+    text: 'Справа от лица, где руке удобно. Подержи секунду — там встанет круг-джойстик: он виден в окне камеры слева внизу.',
     check: (c, dt) => hold(!!control.hands.right?.openPalm || control.devKeyboard, c, dt, 1000),
     onDone: calibrateJoystick,
   },
   {
     id: 'move',
-    title: 'Покажи пальцем, куда идти',
-    text: 'Выпрями указательный, остальные прижми. Палец вверх — вперёд, в сторону — вбок. Раскрыл ладонь — стоп.',
+    title: 'Сдвинь ладонь из круга',
+    text: 'Ладонь в круге — стоишь. Сдвинь её: вверх — вперёд, вниз — назад, в стороны — вбок. Вернул в круг — стоп.',
     check: (c, dt) => hold(Math.hypot(control.move.x, control.move.y) > 0.5, c, dt, 1200),
   },
   {
@@ -57,7 +57,7 @@ const STEPS: Step[] = [
   {
     id: 'grab',
     title: 'Щипок левой рукой',
-    text: 'Соедини большой и указательный и веди руку в сторону — мир повернётся, вверх-вниз — наклонится, к камере — приблизится.',
+    text: 'Соедини большой и указательный и веди руку в сторону — мир повернётся, вверх-вниз — наклонится, к камере и от неё — приблизится и отдалится. Один щипок — одно действие.',
     check: (c) => Math.min(1, Math.abs(control.view.yaw - c.start.yaw) / 0.6),
   },
   {
@@ -69,7 +69,7 @@ const STEPS: Step[] = [
   {
     id: 'menu',
     title: 'Две ладони — меню',
-    text: 'Раскрой обе ладони и подержи секунду — откроется меню: пауза, заново, лобби, схема ходьбы.',
+    text: 'Раскрой обе ладони и подержи секунду — откроется меню: пауза, заново, лобби, размер и место круга.',
     check: (c) => (control.pauseSeq !== c.start.pauseSeq ? 1 : Math.max(control.menuHold * 0.95, control.devKeyboard ? 1 : 0)),
   },
 ]
@@ -79,6 +79,13 @@ export function Tutorial() {
   const [progress, setProgress] = useState(0)
   const ctx = useRef<StepCtx>({ acc: 0, start: { jumpSeq: 0, yaw: 0, headX: 0, pauseSeq: 0 } })
   const step = STEPS[index]
+
+  // Пока не дошли до шага «иди», кольцо ладони следует за рукой и герой стоит:
+  // иначе рука, поднятая для калибровки, могла бы увести героя в портал лобби.
+  useEffect(() => {
+    beginJoystickCalibration()
+    return endJoystickCalibration
+  }, [])
 
   useEffect(() => {
     if (!step) return
@@ -131,8 +138,8 @@ export function Tutorial() {
             <p className="eyebrow">
               Шаг {index + 1} из {STEPS.length}
             </p>
-            <h2 className="tutorial__title">{step.id === 'move' ? schemeInfo().moveTitle : step.title}</h2>
-            <p className="tutorial__text">{step.id === 'move' ? schemeInfo().moveText : step.text}</p>
+            <h2 className="tutorial__title">{step.title}</h2>
+            <p className="tutorial__text">{step.text}</p>
             <div className="bar">
               <div className="bar__fill" style={{ width: `${progress * 100}%` }} />
             </div>

@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { MathUtils, Vector3, type Group, type PerspectiveCamera as PCam } from 'three'
 import { control } from '../shared/controlState'
 import { runtime } from './runtime'
+import { adaptNeutral, DEFAULT_EYE_Z, HEAD_GAIN, HEAD_MAX, PHYSICAL_SCREEN_W, PITCH, PITCH_MAX, PITCH_MIN, WINDOW_W } from './windowParams'
 
 /**
  * Эффект «окна» (head-coupled perspective, как в демо Джонни Ли 2007) + камера, которая держит героя в центре.
@@ -13,27 +14,13 @@ import { runtime } from './runtime'
  *
  * Положение головы берём относительно её «обычного» места: оно медленно подстраивается под то,
  * как игрок сидит. Поэтому быстрые движения головы дают эффект, а поза игрока не сдвигает картинку.
+ * Параметры окна — в windowParams.ts (их же использует проверка уровня «Загляни»).
  */
 
-/** Предполагаемая ширина экрана ноутбука в метрах (14–15"). */
-const PHYSICAL_SCREEN_W = 0.31
-/** Ширина «окна» в единицах мира на уровне героя: сколько мира видно по горизонтали. */
-const WINDOW_W = 14
-/** Наклон взгляда вниз. */
-const PITCH = MathUtils.degToRad(27)
-/** Пределы наклона щипком: чтобы не уйти под землю и не смотреть строго сверху. */
-const PITCH_MIN = MathUtils.degToRad(10)
-const PITCH_MAX = MathUtils.degToRad(60)
-/** Усиление движения головы. */
-const HEAD_GAIN = 2.4
-/** Максимальный сдвиг головы от обычного положения, который учитываем (м). */
-const HEAD_MAX = 0.25
-/** За сколько секунд «обычное» положение головы догоняет текущее. */
-const NEUTRAL_ADAPT_S = 12
 /** Насколько камера заглядывает вперёд по ходу движения (секунды пути). */
 const LOOK_AHEAD_S = 0.45
-/** Расстояние от глаза до окна, когда лица не видно (м). */
-const DEFAULT_EYE_Z = 0.6
+/** Зум щипком сглаживаем примерно за столько секунд — чтобы мир не дрожал вместе с рукой. */
+const ZOOM_SMOOTH_S = 0.1
 const NEAR = 0.5
 const FAR = 400
 
@@ -43,6 +30,7 @@ const focus = new Vector3()
 const ahead = new Vector3()
 const lookTarget = new Vector3()
 let neutralReady = false
+let zoom = 1
 
 export function WindowCamera() {
   const rig = useRef<Group>(null)
@@ -81,7 +69,7 @@ export function WindowCamera() {
         neutral.set(h.x, h.y, h.z)
         neutralReady = true
       }
-      neutral.lerp(h, 1 - Math.exp(-dt / NEUTRAL_ADAPT_S))
+      adaptNeutral(neutral, h, dt)
     }
     const dx = h.visible ? MathUtils.clamp(h.x - neutral.x, -HEAD_MAX, HEAD_MAX) : 0
     const dy = h.visible ? MathUtils.clamp(h.y - neutral.y, -HEAD_MAX, HEAD_MAX) : 0
@@ -92,7 +80,8 @@ export function WindowCamera() {
     eye.z += (ez - eye.z) * k
 
     // 4) Асимметричная перспектива: края кадра всегда проходят через края «окна».
-    const windowW = (WINDOW_W * runtime.viewScale) / control.view.zoom
+    zoom += (control.view.zoom - zoom) * (1 - Math.exp(-dt / ZOOM_SMOOTH_S))
+    const windowW = (WINDOW_W * runtime.viewScale) / zoom
     const scale = windowW / PHYSICAL_SCREEN_W // метры → единицы мира
     const halfW = windowW / 2
     const halfH = halfW / (size.width / size.height)

@@ -5,10 +5,9 @@ import { useGame } from './shared/gameStore'
 import { CameraPreview } from './ui/CameraPreview'
 import { HandCursor } from './ui/Dwell'
 import { Hints } from './ui/Hints'
-import { JoystickIndicator, MenuHoldRing } from './ui/JoystickIndicator'
+import { MenuHoldRing } from './ui/MenuHoldRing'
 import { Countdown, HUD, PauseMenu } from './ui/Overlays'
 import { Results } from './ui/Results'
-import { SchemeSwitcher } from './ui/SchemeSwitcher'
 import { StartScreen } from './ui/StartScreen'
 import { Tutorial } from './ui/Tutorial'
 
@@ -35,10 +34,13 @@ export function App() {
   usePauseGesture()
 
   const inGame = phase !== 'start' && phase !== 'loading'
-  const menu = phase === 'paused' || phase === 'results' || phase === 'tutorial'
+  const playable = phase === 'playing' || phase === 'tutorial' || phase === 'countdown'
+  const menuOpen = phase === 'paused' || phase === 'results'
+  const cursor = menuOpen || phase === 'tutorial'
 
   return (
-    <div className="app">
+    // В меню и на итогах таблички 3D-мира скрыты — ничего не лезет поверх меню.
+    <div className={menuOpen ? 'app app--menu' : 'app'}>
       <GameCanvas />
       {phase === 'start' && <StartScreen />}
       {phase === 'tutorial' && <Tutorial />}
@@ -47,11 +49,9 @@ export function App() {
       {phase === 'paused' && <PauseMenu />}
       {phase === 'results' && <Results />}
       {inGame && control.tracking.ready && <CameraPreview />}
-      {inGame && <Hints />}
-      {(phase === 'playing' || phase === 'tutorial') && <JoystickIndicator />}
+      {playable && <Hints />}
       {(phase === 'playing' || phase === 'tutorial') && <MenuHoldRing />}
-      {inGame && <SchemeSwitcher />}
-      {menu && <HandCursor />}
+      {cursor && <HandCursor />}
     </div>
   )
 }

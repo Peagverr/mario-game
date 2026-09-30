@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { control } from '../shared/controlState'
-import { nextScheme, onSchemeChange, schemeInfo } from '../shared/schemes'
+import { useEffect, useRef, useState } from 'react'
 import { sfx } from '../game/sfx'
+import { beginJoystickCalibration, calibrateJoystick, endJoystickCalibration, palmRingScale, resizePalmRing } from '../input/tracker'
+import { control } from '../shared/controlState'
 import { useGame, runSeconds } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
 
@@ -38,8 +38,6 @@ export function HUD() {
   const secrets = useGame((s) => s.secretsFound)
   const secretsTotal = useGame((s) => s.secretsTotal)
   const [time, setTime] = useState(0)
-  const [scheme, setSchemeState] = useState(control.scheme)
-  useEffect(() => onSchemeChange(setSchemeState), [])
 
   useEffect(() => {
     const id = setInterval(() => setTime(runSeconds(useGame.getState())), 250)
@@ -67,39 +65,111 @@ export function HUD() {
         </>
       )}
       <div className="hud__legend">
-        {schemeInfo(scheme).legend.map((l) => (
-          <span key={l}>{l}</span>
-        ))}
+        <span>ладонь в круг — готов</span>
+        <span>сдвинь ладонь — иди</span>
         <span>кулак — прыжок</span>
-        <span>щипок левой — повернуть и наклонить</span>
+        <span>щипок левой — поворот, наклон, зум</span>
         <span>две ладони — меню</span>
       </div>
     </div>
   )
 }
 
+/** «Круг больше / меньше» — во столько раз за нажатие. */
+const RING_STEP = 1.15
+
 export function PauseMenu() {
-  const [scheme, setSchemeState] = useState(control.scheme)
-  useEffect(() => onSchemeChange(setSchemeState), [])
+  const [setup, setSetup] = useState(false)
+  const [ring, setRing] = useState(palmRingScale)
+  const g = useGame.getState()
+  if (setup) return <RingSetup onDone={() => setSetup(false)} />
   return (
     <div className="screen screen--dim">
       <div className="card">
         <h2 className="title title--small">Меню</h2>
         <p className="lead">Наведи палец на кнопку и подержи секунду.</p>
         <div className="row">
-          <DwellButton onActivate={() => useGame.getState().setPhase('playing')}>Продолжить</DwellButton>
-          <DwellButton variant="ghost" onActivate={() => useGame.getState().restart()}>
+          <DwellButton onActivate={() => g.setPhase('playing')}>Продолжить</DwellButton>
+          <DwellButton variant="ghost" onActivate={() => g.restart()}>
             Заново
           </DwellButton>
-          {useGame.getState().sceneId !== 'lobby' && (
-            <DwellButton variant="ghost" onActivate={() => useGame.getState().goToScene('lobby')}>
+          {g.sceneId !== 'lobby' && (
+            <DwellButton variant="ghost" onActivate={() => g.goToScene('lobby')}>
               В лобби
             </DwellButton>
           )}
-          <DwellButton variant="ghost" onActivate={nextScheme}>
-            Ходьба: {schemeInfo(scheme).title}
+        </div>
+        <h3 className="menu__section">Круг-джойстик — {Math.round(ring * 100)}%</h3>
+        <div className="row row--tight">
+          <DwellButton variant="ghost" onActivate={() => setRing(resizePalmRing(1 / RING_STEP))}>
+            Меньше
+          </DwellButton>
+          <DwellButton variant="ghost" onActivate={() => setRing(resizePalmRing(RING_STEP))}>
+            Больше
+          </DwellButton>
+          <DwellButton variant="ghost" onActivate={() => setSetup(true)}>
+            Поставить заново
           </DwellButton>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** Сколько держать раскрытую ладонь, чтобы круг встал под неё. */
+const SETUP_HOLD_MS = 1000
+/** Руки не видно столько — возвращаемся в меню. */
+const SETUP_GIVE_UP_MS = 10000
+
+/** «Поставить круг заново»: подними правую ладонь, где руке удобно, подержи секунду — круг встанет туда. */
+function RingSetup({ onDone }: { onDone: () => void }) {
+  const [progress, setProgress] = useState(0)
+  const done = useRef(onDone)
+  done.current = onDone
+
+  useEffect(() => {
+    beginJoystickCalibration()
+    let raf = 0
+    let last = performance.now()
+    let held = 0
+    let away = 0
+    let frame = 0
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const now = performance.now()
+      const dt = Math.min(100, now - last)
+      last = now
+      const r = control.hands.right
+      held = r?.openPalm ? held + dt : Math.max(0, held - dt * 2)
+      away = r ? 0 : away + dt
+      if (frame++ % 3 === 0) setProgress(Math.min(1, held / SETUP_HOLD_MS))
+      if (held >= SETUP_HOLD_MS) {
+        cancelAnimationFrame(raf)
+        calibrateJoystick()
+        sfx.confirm()
+        setProgress(1)
+        setTimeout(() => done.current(), 400)
+      } else if (away > SETUP_GIVE_UP_MS) {
+        cancelAnimationFrame(raf)
+        done.current()
+      }
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      endJoystickCalibration()
+    }
+  }, [])
+
+  return (
+    <div className="screen screen--dim">
+      <div className="card">
+        <h2 className="title title--small">Поставь круг</h2>
+        <p className="lead">Подними правую ладонь справа от лица — там, где руке удобно, — и подержи секунду.</p>
+        <div className="bar">
+          <div className="bar__fill" style={{ width: `${progress * 100}%` }} />
+        </div>
+        <p className="fine">В окне камеры слева внизу жёлтый круг сейчас следует за ладонью.</p>
       </div>
     </div>
   )
