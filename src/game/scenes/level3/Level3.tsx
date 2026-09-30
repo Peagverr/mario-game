@@ -36,9 +36,9 @@ const PLATFORMS: Platform[] = [
   { x: 0, z: -12.5, top: 0, w: 8, d: 8, h: 2.4, kind: 'island', checkpoint: true },
 ]
 const BRIDGES: Bridge[] = [
-  { from: [4, 0], to: [9, 0], top: 0, width: 1.8, targetYaw: 0.8 },
-  { from: [13, -4], to: [13, -8.5], top: 0, width: 1.8, targetYaw: -0.8 },
-  { from: [9, -12.5], to: [4, -12.5], top: 0, width: 1.8, targetYaw: 1.5 },
+  { from: [4, 0], to: [9, 0], top: 0, width: 2.4, targetYaw: 0.8 },
+  { from: [13, -4], to: [13, -8.5], top: 0, width: 2.4, targetYaw: -0.8 },
+  { from: [9, -12.5], to: [4, -12.5], top: 0, width: 2.4, targetYaw: 1.5 },
 ]
 const STARS: [number, number, number][] = [
   [-2, 1, -2],
@@ -78,7 +78,7 @@ export function Level3() {
           <span>Сделай щипок левой рукой и веди в сторону — доски съедутся в мост.</span>
         </div>
       </Html>
-      <Player spawn={[0, 1.2, 1]} killY={-10} />
+      <Player spawn={[0, 1.2, 0]} killY={-10} />
     </>
   )
 }

@@ -9,6 +9,7 @@ import { palette } from './palette'
 import { burst, runtime } from './runtime'
 import { sfx } from './sfx'
 import { toonGradient } from './toon'
+import { capStep, snapToAxes, softEdges } from './walk'
 
 const RADIUS = 0.35
 const HALF_HEIGHT = 0.35
@@ -29,8 +30,7 @@ const RELEASE_GRACE_S = 0.08
 const SHADOW_RAY = 40
 /** После возрождения герой стоит, пока направление жеста не изменится на столько градусов (идея Абзала). */
 const RESPAWN_UNLOCK_DEG = 35
-/** Мягкие края: насколько впереди ног ищем землю и какой обрыв уже считается пропастью. */
-const EDGE_PROBE = RADIUS + 0.25
+/** Мягкие края: какой обрыв уже считается пропастью (насколько впереди ищем землю — в walk.ts). */
 const EDGE_DROP = 1.5
 
 const toFeet = HALF_HEIGHT + RADIUS
@@ -115,10 +115,12 @@ export function Player({ spawn, killY }: Props) {
     }
     runtime.moveLocked = !!s.lockDir
 
-    // — Ходьба относительно камеры: «вправо» на экране = вправо для героя —
+    // — Ходьба относительно камеры: «вправо» на экране = вправо для героя.
+    // Рядом с осью мира — ровно по оси: мосты и острова стоят по осям, даже когда мир повёрнут.
     const yaw = runtime.cameraYaw
-    const dirX = mx * Math.cos(yaw) - my * Math.sin(yaw)
-    const dirZ = -mx * Math.sin(yaw) - my * Math.cos(yaw)
+    const dir = snapToAxes(mx * Math.cos(yaw) - my * Math.sin(yaw), -mx * Math.sin(yaw) - my * Math.cos(yaw))
+    const dirX = dir.x
+    const dirZ = dir.z
     const accel = s.grounded ? 14 : 6
     const k = 1 - Math.exp(-accel * dt)
     let vx = vel.x + (dirX * SPEED + (carry?.x ?? 0) - vel.x) * k
@@ -158,7 +160,7 @@ export function Player({ spawn, killY }: Props) {
       vz *= 0.8
     }
 
-    // — Мягкие края: шагом с обрыва не упасть, через пропасть — только прыжком —
+    // — Мягкие края: шагом с обрыва не упасть, через пропасть — только прыжком; к мосту съезжает сам (walk.ts) —
     if (s.grounded && !s.rising) {
       const groundAt = (x: number, z: number) =>
         !!world.castRay(
@@ -170,20 +172,14 @@ export function Player({ spawn, killY }: Props) {
           undefined,
           b,
         )
-      const cx = carry?.x ?? 0
-      const cz = carry?.z ?? 0
-      const ox = vx - cx
-      const oz = vz - cz
-      const px = Math.abs(ox) > 0.1 ? pos.x + Math.sign(ox) * EDGE_PROBE : pos.x
-      const pz = Math.abs(oz) > 0.1 ? pos.z + Math.sign(oz) * EDGE_PROBE : pos.z
-      // По осям отдельно — чтобы герой скользил вдоль края, а не застревал.
-      if (px !== pos.x && !groundAt(px, pos.z)) vx = cx
-      if (pz !== pos.z && !groundAt(pos.x, pz)) vz = cz
-      if (vx !== cx && vz !== cz && !groundAt(px, pz)) {
-        vx = cx
-        vz = cz
-      }
+      const v = softEdges({ x: pos.x, z: pos.z }, { x: vx, z: vz }, groundAt, { x: carry?.x ?? 0, z: carry?.z ?? 0 })
+      vx = v.x
+      vz = v.z
     }
+    // Кадр подвис — физика шагнёт надолго: не даём проскочить мягкий край за один шаг.
+    const capped = capStep(vx, vz, dtRaw)
+    vx = capped.x
+    vz = capped.z
     b.setLinvel({ x: vx, y: vy, z: vz }, true)
 
     // — Падение в пропасть —

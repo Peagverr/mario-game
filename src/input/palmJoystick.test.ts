@@ -65,13 +65,14 @@ describe('ладонь у лица', () => {
     expect(speed(frame(at(1.2, 0)))).toBeCloseTo(1)
   })
 
-  it('рядом с осью идёт ровно по оси, по диагонали — наискосок', () => {
+  it('направление — как у руки: к осям мира притягивает уже сам герой (walk.ts), даже когда мир повёрнут', () => {
     const { frame } = joystick()
     frame(at(0, 0))
     const a = (10 * Math.PI) / 180
     const nearAxis = frame(at(0.6 * Math.cos(a), 0.6 * Math.sin(a)))
-    expect(nearAxis.move.x).toBeCloseTo(1)
-    expect(Math.abs(nearAxis.move.y)).toBe(0)
+    expect(nearAxis.move.x).toBeCloseTo(Math.cos(a))
+    expect(nearAxis.move.y).toBeCloseTo(Math.sin(a))
+    expect(nearAxis.sector).toBe(0)
     const diagonal = frame(at(0.6 * Math.SQRT1_2, 0.6 * Math.SQRT1_2))
     expect(diagonal.move.x).toBeCloseTo(diagonal.move.y)
     expect(diagonal.move.x).toBeGreaterThan(0.5)

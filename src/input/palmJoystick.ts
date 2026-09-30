@@ -2,7 +2,8 @@
  * Ладонь у лица (идея Абзала): справа от лица — кольцо-джойстик, его видно в мини-окне камеры.
  *
  * - Пока ладонь не побывала в центре кольца, герой стоит: рука, поднятая снизу, не уводит его назад.
- * - Вышла из центра — идёт: вверх — вперёд, вниз — назад, в стороны — вбок; рядом с осью — ровно по оси.
+ * - Вышла из центра — идёт туда: вверх — вперёд, вниз — назад, в стороны — вбок
+ *   (к осям мира ходьбу притягивает уже сам герой — walk.ts).
  * - Пока рука поднята, кольцо стоит на месте кадра: голова двигается для эффекта окна — герой сам не идёт.
  *   Опустил руку — кольцо снова следует за лицом.
  *
@@ -35,8 +36,6 @@ const LOST_MS = 400
 const HOLD_MS = 150
 /** Запас на возврат в центр: на границе не мигает «иду — стою». */
 const HYSTERESIS = 0.04
-/** Возле осей направление притягивается к прямой: по мосту идётся ровно. */
-const SNAP = (20 * Math.PI) / 180
 /** Калибровка не ставит кольцо на лицо и за край кадра. */
 const OFFSET_X = [0.9, 2] as const
 const OFFSET_Y = [-0.3, 1.6] as const
@@ -46,12 +45,6 @@ const RING_MIN = 0.15
 const FULL_MAX = 1
 /** Пока лицо ни разу не видели — считаем, что оно в центре кадра 4:3. */
 const FALLBACK_FACE: FaceAnchor = { x: (0.5 * 4) / 3, y: 0.4, w: 0.28 }
-const AXES: Vec2[] = [
-  { x: 1, y: 0 },
-  { x: 0, y: 1 },
-  { x: -1, y: 0 },
-  { x: 0, y: -1 },
-]
 
 export type PalmFrame = {
   t: number
@@ -149,13 +142,12 @@ export class PalmJoystick {
     let move = { x: 0, y: 0 }
     let sector: PalmState['sector'] = -1
     if (this.moving) {
-      const angle = Math.atan2(dy, dx)
-      const axis = Math.round(angle / (Math.PI / 2))
+      // Сектор — для подсветки в мини-окне; к осям мира ходьбу притягивает уже сам герой (walk.ts).
+      const axis = Math.round(Math.atan2(dy, dx) / (Math.PI / 2))
       sector = (((axis % 4) + 4) % 4) as 0 | 1 | 2 | 3
       const k = Math.min(1, Math.max(0, (d - p.dead) / (p.full - p.dead)))
       const m = p.minSpeed + (1 - p.minSpeed) * k
-      const dir = Math.abs(angle - (axis * Math.PI) / 2) < SNAP ? AXES[sector] : { x: dx / d, y: dy / d }
-      move = { x: dir.x * m, y: dir.y * m }
+      move = { x: (dx / d) * m, y: (dy / d) * m }
     }
     this.last = { move, armed: true, moving: this.moving, center: c, dead: p.dead * w, full: p.full * w, faceAnchored: false, sector }
     return f.holdStill ? { ...this.last, move: { x: 0, y: 0 }, sector: -1 } : this.last
