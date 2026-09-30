@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "postinstall": "node scripts/copy-mediapipe-wasm.mjs"
+    "postinstall": "node scripts/copy-mediapipe-wasm.mjs",
+    "deploy": "npm run build && node scripts/deploy-pages.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
