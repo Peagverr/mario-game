@@ -57,6 +57,14 @@ const hintFilter = new HintFilter()
 /** Внутреннее состояние жестов между кадрами. */
 const s = {
   joyCenter: { x: 0.64, y: 0.62 },
+  /**
+   * Центр ладони-джойстика привязан к ЛИЦУ: хранится смещение от лица в размерах лица.
+   * Откинулся на стуле или сдвинулся — центр едет вместе с тобой, герой сам не пойдёт.
+   * По умолчанию — справа-снизу от лица, где естественно лежит правая рука (перед лицом нельзя — закроет лицо).
+   */
+  palmOffset: { x: 1.1, y: 1.3 },
+  faceCenter: null as null | { x: number; y: number },
+  faceW: 0,
   wasFist: false,
   lastJump: 0,
   grab: null as null | { x: number; y: number; yaw: number; pitch: number; size: number; zoom: number },
@@ -87,7 +95,30 @@ export type TrackerStatus = 'camera' | 'models' | 'ready'
 /** Запоминает текущее положение правой ладони как «нулевую точку» джойстика. */
 export function calibrateJoystick() {
   const r = control.hands.right
-  if (r) s.joyCenter = { x: r.palm.x, y: r.palm.y }
+  if (r) setPalmCenter(r.palm, performance.now())
+}
+
+/** Лицо видно недавно — можно считать центр от него. */
+function faceFresh(t: number) {
+  return !!s.faceCenter && s.faceW > 0 && t - s.lastFaceAt < 600
+}
+
+/** Запомнить «где ладонь сейчас — там ноль»: относительно лица, если оно видно. */
+function setPalmCenter(p: { x: number; y: number }, t: number) {
+  s.joyCenter = { x: p.x, y: p.y }
+  if (faceFresh(t)) {
+    const aspect = video ? video.videoWidth / video.videoHeight : 4 / 3
+    s.palmOffset = { x: (p.x - s.faceCenter!.x) / s.faceW, y: (p.y - s.faceCenter!.y) / (s.faceW * aspect) }
+  }
+}
+
+/** Текущий центр ладони-джойстика: от лица, если оно видно, иначе — неподвижная точка кадра. */
+function palmCenter(t: number) {
+  if (!faceFresh(t)) return { ...s.joyCenter, anchored: false }
+  const aspect = video ? video.videoWidth / video.videoHeight : 4 / 3
+  const c = { x: s.faceCenter!.x + s.palmOffset.x * s.faceW, y: s.faceCenter!.y + s.palmOffset.y * s.faceW * aspect }
+  s.joyCenter = { x: c.x, y: c.y }
+  return { ...c, anchored: true }
 }
 
 async function createTasks() {
@@ -202,7 +233,7 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     // …но только если рука появилась в середине кадра: у края она чаще всего «вывалилась» и вернулась.
     const p = next.right.palm
     const central = p.x > 0.3 && p.x < 0.85 && p.y > 0.25 && p.y < 0.8
-    if (t - s.lastRightAt > 800 && central) s.joyCenter = { x: p.x, y: p.y }
+    if (t - s.lastRightAt > 800 && central) setPalmCenter(p, t)
     s.lastRightAt = t
   }
   if (control.scheme === 'pointer') applyPointer(next.right, t)
@@ -222,6 +253,12 @@ function shape(v: number) {
 
 let joystickReach = 0
 function applyJoystick(r: HandState | null) {
+  const t = performance.now()
+  const c = palmCenter(t)
+  control.joystick.centerX = c.x
+  control.joystick.centerY = c.y
+  control.joystick.faceAnchored = c.anchored
+  control.joystick.radius = r ? r.size * JOYSTICK_RANGE : 0
   control.joystick.active = !!r
   if (!r) {
     control.move.x = 0
@@ -232,8 +269,8 @@ function applyJoystick(r: HandState | null) {
     return
   }
   const range = r.size * JOYSTICK_RANGE || 0.1
-  let dx = (r.palm.x - s.joyCenter.x) / range
-  let dy = (r.palm.y - s.joyCenter.y) / range
+  let dx = (r.palm.x - c.x) / range
+  let dy = (r.palm.y - c.y) / range
   if (dy > 0) dy *= JOYSTICK_DOWN_GAIN
   joystickReach = Math.hypot(dx, dy)
   // «Плавающий» центр, как у джойстиков в мобильных играх: увёл руку дальше края зоны —
@@ -284,6 +321,12 @@ function applyPointer(r: HandState | null, t: number) {
  */
 function applyFingertip(r: HandState | null, t: number) {
   control.joystick.active = !!r
+  control.joystick.faceAnchored = false
+  control.joystick.radius = r?.pointing && s.tipCenter ? r.size * JOYSTICK_RANGE : 0
+  if (s.tipCenter) {
+    control.joystick.centerX = s.tipCenter.x
+    control.joystick.centerY = s.tipCenter.y
+  }
   let dir: { x: number; y: number } | null = null
   let jx = 0
   let jy = 0
@@ -400,6 +443,9 @@ function processFace(res: ReturnType<FaceLandmarker['detectForVideo']>, t: numbe
   }
   s.lastFaceAt = t
   const points = lm.map(mirror)
+  // Центр лица — между зрачками; ширина — от скулы до скулы (точки 234 и 454).
+  s.faceCenter = { x: (points[468].x + points[473].x) / 2, y: (points[468].y + points[473].y) / 2 }
+  s.faceW = Math.abs(points[454].x - points[234].x)
   const m = res.facialTransformationMatrixes?.[0]?.data
   const yaw = m ? yawFromMatrix(m) : 0
   const h = headFilter.filter(estimateHead(points, video!.videoWidth, video!.videoHeight, yaw), t)

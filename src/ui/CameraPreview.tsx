@@ -70,6 +70,33 @@ export function CameraPreview() {
         ctx.fill()
       })
 
+      // Центр джойстика и рабочая зона: видно, где «ноль» и насколько сдвинута рука.
+      const j = control.joystick
+      if (j.radius > 0 && control.scheme !== 'pointer') {
+        const cx = j.centerX * W
+        const cy = j.centerY * H
+        if (j.faceAnchored && control.face.points.length) {
+          const f = control.face.points
+          ctx.strokeStyle = 'rgba(255,247,234,0.5)'
+          ctx.setLineDash([4, 4])
+          ctx.lineWidth = 1.5
+          ctx.beginPath()
+          ctx.moveTo(((f[0].x + f[1].x) / 2) * W, ((f[0].y + f[1].y) / 2) * H)
+          ctx.lineTo(cx, cy)
+          ctx.stroke()
+          ctx.setLineDash([])
+        }
+        ctx.strokeStyle = '#ffd23f'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(cx, cy, j.radius * W, j.radius * H, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.fillStyle = '#ffd23f'
+        ctx.beginPath()
+        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
       const pulse = 3 + Math.sin(performance.now() / 120) * 1.5
       for (const side of ['left', 'right'] as const) {
         const h = control.hands[side]
