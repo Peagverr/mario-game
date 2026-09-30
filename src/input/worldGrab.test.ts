@@ -26,20 +26,29 @@ function pushTo(g: WorldGrab, ratio: number) {
 }
 
 describe('щипок левой: поворот, наклон, приближение', () => {
-  it('тянешь вниз — мир наклоняется и не крутится, даже если рука чуть уходит вбок', () => {
+  it('тянешь вниз — мир наклоняется, а лёгкий уход вбок крутит совсем чуть-чуть', () => {
     const g = grab()
     g.move({ ...P0, x: P0.x + 0.005, y: P0.y + 0.05 })
     const v = g.move({ ...P0, x: P0.x + 0.01, y: P0.y + 0.1 })
-    expect(v.yaw).toBe(0)
     // Сдвиг на десятую часть кадра — уже заметный наклон.
     expect(v.pitch).toBeGreaterThan(0.2)
+    expect(Math.abs(v.yaw)).toBeLessThan(0.06)
   })
 
-  it('ведёшь в сторону — мир крутится и не наклоняется', () => {
+  it('ведёшь в сторону — мир крутится, а лёгкий уход вверх-вниз наклоняет совсем чуть-чуть', () => {
     const g = grab()
     const v = g.move({ ...P0, x: P0.x + 0.15, y: P0.y + 0.02 })
     expect(v.yaw).toBeGreaterThan(0.3)
-    expect(v.pitch).toBe(0)
+    expect(Math.abs(v.pitch)).toBeLessThan(0.07)
+  })
+
+  it('в одном щипке сначала вбок, потом вниз — меняются обе оси (нет «замка» на одну)', () => {
+    const g = grab()
+    const turned = g.move({ ...P0, x: P0.x + 0.12 })
+    expect(turned.yaw).toBeGreaterThan(0.3)
+    const both = g.move({ ...P0, x: P0.x + 0.12, y: P0.y + 0.1 })
+    expect(both.yaw).toBeCloseTo(turned.yaw)
+    expect(both.pitch).toBeGreaterThan(0.2)
   })
 
   it('по диагонали — и крутится, и наклоняется', () => {
@@ -92,7 +101,7 @@ describe('щипок левой: поворот, наклон, приближе�
     expect(v.zoom).toBe(1)
   })
 
-  it('отпустил и щипнул заново — продолжаешь с того же вида, замок оси выбирается заново', () => {
+  it('отпустил и щипнул заново — продолжаешь с того же вида', () => {
     const g = grab()
     const turned = g.move({ ...P0, x: P0.x + 0.15 })
     expect(turned.yaw).toBeGreaterThan(0)

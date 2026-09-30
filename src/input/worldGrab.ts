@@ -2,16 +2,16 @@
  * Щипок левой «держит мир»: повёл в сторону — мир повернулся, вверх-вниз — наклонился,
  * к камере или от неё — приблизился или отдалился.
  *
- * Один щипок — одно действие: первые движения решают, что ты делаешь. Тянешь в основном вверх-вниз — только
- * наклон; в стороны — только поворот; по диагонали — поворот и наклон вместе; к камере или от неё — только зум.
- * Хочешь другое — отпусти и щипни заново: вид продолжится с того же места.
+ * Первые движения щипка решают, что ты делаешь: ведёшь руку (в любую сторону) — мир крутится и наклоняется
+ * одновременно, как если бы держал его рукой; к камере или от неё — только зум (чтобы толчок к камере не крутил мир).
+ * Хочешь зум после поворота или наоборот — отпусти и щипни заново: вид продолжится с того же места.
  */
 
 export type View = { yaw: number; pitch: number; zoom: number }
 /** Точка щипка — в долях ширины и высоты кадра (зеркально), размер ладони — в долях высоты кадра. */
 export type PinchPoint = { x: number; y: number; size: number }
-/** Что делает этот щипок: поворот, наклон, оба сразу или зум. */
-export type GrabAxis = 'yaw' | 'pitch' | 'free' | 'zoom'
+/** Что делает этот щипок: двигает мир (поворот и наклон вместе) или приближает. */
+export type GrabAxis = 'move' | 'zoom'
 
 /** Провести щипком через весь кадр по горизонтали = столько радиан поворота. */
 const ROTATE_GAIN = Math.PI * 1.6
@@ -26,12 +26,10 @@ const ZOOM_MAX = 1.8
 const ZOOM_POWER = 2.5
 /** Размер ладони чуть «дышит» даже у неподвижной руки — изменения меньше этой доли не зумят. */
 const ZOOM_DEADBAND = 0.04
-/** После такого сдвига (в долях высоты кадра) выбирается поворот или наклон… */
+/** После такого сдвига (в долях высоты кадра) выбирается «двигаю мир»… */
 const LOCK_DIST = 0.025
 /** …а после такого изменения размера ладони — зум (≈4 см к камере). Что наступило раньше, то и выбрано. */
 const ZOOM_LOCK = 0.08
-/** Поворот или наклон выбирается, если движение по оси больше, чем по другой, во столько раз; иначе — оба. */
-const LOCK_RATIO = 1.3
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -81,15 +79,14 @@ export class WorldGrab {
       const planar = Math.hypot(ax, ay) / LOCK_DIST
       const depth = Math.abs(Math.log(ratio)) / Math.log(1 + ZOOM_LOCK)
       if (planar >= 1 || depth >= 1) {
-        if (depth >= planar) this.locked = 'zoom'
-        else this.locked = ay > ax * LOCK_RATIO ? 'pitch' : ax > ay * LOCK_RATIO ? 'yaw' : 'free'
+        this.locked = depth >= planar ? 'zoom' : 'move'
       }
     }
     const a = this.locked
-    // Оси, которые не выбраны, остаются там, где были в момент выбора.
-    const yaw = a === 'pitch' || a === 'zoom' ? this.current.yaw : this.view.yaw + dx * ROTATE_GAIN
+    // Зум не крутит и не наклоняет; «двигаю мир» (и пока не решил) — поворот и наклон вместе.
+    const yaw = a === 'zoom' ? this.current.yaw : this.view.yaw + dx * ROTATE_GAIN
     // «Схватил мир и потянул вниз» — дальний край мира опускается, смотрим сверху; вверх — сбоку.
-    const pitch = a === 'yaw' || a === 'zoom' ? this.current.pitch : clamp(this.view.pitch + dy * PITCH_GAIN, PITCH_MIN, PITCH_MAX)
+    const pitch = a === 'zoom' ? this.current.pitch : clamp(this.view.pitch + dy * PITCH_GAIN, PITCH_MIN, PITCH_MAX)
     let zoom = this.current.zoom
     if (!a || a === 'zoom') {
       // Рука ближе к камере → ладонь крупнее → приближаем мир (мелкие колебания размера не считаем).
