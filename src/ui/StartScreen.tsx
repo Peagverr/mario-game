@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { unlockAudio } from '../game/sfx'
+import { preloadVoice } from '../game/voice'
 import { enableDevKeyboard } from '../input/keyboardDev'
 import { startTracking, type TrackerStatus } from '../input/tracker'
 import { useGame } from '../shared/gameStore'
@@ -20,6 +21,7 @@ export function StartScreen() {
 
   const start = async () => {
     unlockAudio()
+    preloadVoice()
     try {
       await startTracking((step) => setState({ kind: 'loading', step }))
       useGame.getState().setPhase('tutorial')
@@ -31,6 +33,7 @@ export function StartScreen() {
 
   const devStart = () => {
     unlockAudio()
+    preloadVoice()
     enableDevKeyboard()
     useGame.getState().setPhase('tutorial')
   }

@@ -6,3 +6,6 @@ dist
 PLAN.md
 .claude
 public/mediapipe
+
+# Сырые блоки озвучки (ElevenLabs) — режутся в public/voice командой npm run voice
+voice_raw

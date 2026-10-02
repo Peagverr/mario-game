@@ -11,6 +11,7 @@ import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
 import { toonGradient } from '../../toon'
 import { LEVELS, type LevelInfo } from '../index'
+import { LobbyHolo } from '../../holo/LobbyHolo'
 import { Platforms } from '../level1/Platforms'
 import type { Platform } from '../level1/levelData'
 
@@ -42,6 +43,8 @@ export function Lobby() {
         <Portal key={i} position={pos} level={LEVELS[i]} placeholder={SLOT_TITLES[i]} />
       ))}
       <Player spawn={[0, 1.2, 1]} killY={-10} />
+      {/* Голограмма-подсказка обучения: показывает жест рядом с героем (что показать — решает Tutorial). */}
+      <LobbyHolo />
     </>
   )
 }

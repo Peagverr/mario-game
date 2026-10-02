@@ -10,6 +10,7 @@ import { Countdown, HUD, PauseMenu } from './ui/Overlays'
 import { Results } from './ui/Results'
 import { StartScreen } from './ui/StartScreen'
 import { Tutorial } from './ui/Tutorial'
+import { VoiceDirector } from './ui/VoiceDirector'
 
 /** Жест «две ладони» переключает паузу. */
 function usePauseGesture() {
@@ -42,6 +43,7 @@ export function App() {
     // В меню и на итогах таблички 3D-мира скрыты — ничего не лезет поверх меню.
     <div className={menuOpen ? 'app app--menu' : 'app'}>
       <GameCanvas />
+      <VoiceDirector />
       {phase === 'start' && <StartScreen />}
       {phase === 'tutorial' && <Tutorial />}
       {phase === 'countdown' && <Countdown />}

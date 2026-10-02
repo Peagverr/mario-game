@@ -7,6 +7,7 @@ import { Suspense, useState } from 'react'
 import { useGame } from '../shared/gameStore'
 import { Bursts, Clouds, Lights, Sky } from './Environment'
 import { palette } from './palette'
+import { runtime } from './runtime'
 import { SCENES } from './scenes'
 import { WindowCamera } from './WindowCamera'
 
@@ -28,6 +29,7 @@ export function GameCanvas() {
         onDecline={() => {
           setDpr(1)
           setQuality('low')
+          runtime.lowQuality = true
         }}
         onIncline={() => setDpr(1.25)}
       />

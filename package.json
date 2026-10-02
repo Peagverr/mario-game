@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "postinstall": "node scripts/copy-mediapipe-wasm.mjs",
     "deploy": "npm run build && node scripts/deploy-pages.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "voice": "node scripts/cut-voice.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

@@ -24,6 +24,8 @@ export const runtime = {
   moveLocked: false,
   /** Тряска камеры, 0..1, затухает сама. */
   shake: 0,
+  /** Слабый ноутбук (PerformanceMonitor снизил качество) — эффекты экономнее: меньше частиц у голограммы. */
+  lowQuality: false,
 }
 
 export function burst(pos: Vector3, color: string, count = 14, speed = 4) {

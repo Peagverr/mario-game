@@ -8,6 +8,7 @@ import { palette } from '../../palette'
 import { Player } from '../../Player'
 import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
+import { PRIORITY, say } from '../../voice'
 import { toonGradient } from '../../toon'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
@@ -121,6 +122,8 @@ function GhostBridge({ b }: { b: Bridge }) {
       if (solid && !firstFrame.current) {
         burst(geo.center.clone().setY(b.top + 0.5), palette.star, 26, 5)
         sfx.confirm()
+        // «Мост собран. Нужен был другой угол» — за забег один раз, на первом собранном мосту.
+        say('rotate.done', { priority: PRIORITY.story, waitMs: 2500, once: `bridge-${useGame.getState().runId}` })
       }
       wasSolid.current = solid
     }

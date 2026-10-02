@@ -6,14 +6,31 @@
 let ctx: AudioContext | null = null
 let master: GainNode | null = null
 
+const MASTER_GAIN = 0.35
+/** Пока говорит голос, эффекты тише во столько раз. */
+const DUCKED = 0.4
+
 export function unlockAudio() {
   if (!ctx) {
     ctx = new AudioContext()
     master = ctx.createGain()
-    master.gain.value = 0.35
+    master.gain.value = MASTER_GAIN
     master.connect(ctx.destination)
   }
   if (ctx.state === 'suspended') void ctx.resume()
+}
+
+/** Общий аудиоконтекст (голос играет в нём же). null — звук ещё не разрешён кликом. */
+export function audioContext() {
+  return ctx
+}
+
+/** Голос говорит — эффекты приглушаем, замолчал — возвращаем. */
+export function duckSfx(on: boolean) {
+  if (!ctx || !master) return
+  const t = ctx.currentTime
+  master.gain.cancelScheduledValues(t)
+  master.gain.setTargetAtTime(MASTER_GAIN * (on ? DUCKED : 1), t, on ? 0.05 : 0.3)
 }
 
 function tone(freq: number, dur: number, type: OscillatorType = 'sine', gain = 0.5, slideTo?: number, delay = 0) {
@@ -65,4 +82,6 @@ export const sfx = {
   hint: () => tone(440, 0.16, 'sine', 0.18, 380),
   count: (last = false) => tone(last ? 1046 : 523, last ? 0.4 : 0.15, 'square', 0.18),
   finish: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.3, 'triangle', 0.3, undefined, i * 0.1)),
+  /** Голограмма рассыпалась — жест повторён: тихий «стеклянный» перезвон вверх. */
+  holo: () => [1319, 1760, 2637].forEach((f, i) => tone(f, 0.9 - i * 0.15, 'sine', 0.13 - i * 0.03, undefined, i * 0.07)),
 }

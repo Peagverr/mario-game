@@ -132,6 +132,7 @@ export class HandTracker {
     return {
       present: true,
       points,
+      world,
       size,
       palm,
       curls,
