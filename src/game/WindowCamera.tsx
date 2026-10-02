@@ -19,7 +19,7 @@ import { adaptNeutral, DEFAULT_EYE_Z, HEAD_GAIN, HEAD_MAX, PHYSICAL_SCREEN_W, PI
 
 /** Насколько камера заглядывает вперёд по ходу движения (секунды пути). */
 const LOOK_AHEAD_S = 0.45
-/** Зум щипком сглаживаем примерно за столько секунд — чтобы мир не дрожал вместе с рукой. */
+/** Зум левым кулаком сглаживаем примерно за столько секунд — чтобы мир не дрожал вместе с рукой. */
 const ZOOM_SMOOTH_S = 0.1
 const NEAR = 0.5
 const FAR = 400
@@ -49,7 +49,7 @@ export function WindowCamera() {
     // По высоте следим спокойнее, чтобы камера не прыгала вместе с героем.
     focus.y += (target.y - focus.y) * (1 - Math.exp(-2 * dt))
 
-    // 2) Окно стоит на месте героя и смотрит на него под углом сверху; поворот мира — щипком.
+    // 2) Окно стоит на месте героя и смотрит на него под углом сверху; поворот мира — левым кулаком.
     const yaw = -control.view.yaw
     runtime.cameraYaw = yaw
     rig.current.position.copy(focus)

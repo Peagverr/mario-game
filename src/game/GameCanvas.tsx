@@ -5,6 +5,7 @@ import { Physics } from '@react-three/rapier'
 import { ToneMappingMode } from 'postprocessing'
 import { Suspense, useEffect, useState } from 'react'
 import { useGame } from '../shared/gameStore'
+import { AtmosphereDriver } from './atmosphere/AtmosphereDriver'
 import { Bursts, Clouds, Lights, Sky } from './Environment'
 import { palette } from './palette'
 import { runtime } from './runtime'
@@ -19,6 +20,9 @@ const STEP_MODE = new URLSearchParams(location.search).has('step')
 
 function DebugStepper() {
   const advance = useThree((s) => s.advance)
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  useEffect(() => void Object.assign(window, { __scene: scene, __camera: camera }), [scene, camera])
   useEffect(() => {
     let t = 0
     Object.assign(window, {
@@ -50,7 +54,8 @@ export function GameCanvas() {
       shadows
       dpr={dpr}
       frameloop={STEP_MODE ? 'never' : 'always'}
-      gl={{ antialias: false, powerPreference: 'high-performance' }}
+      // В режиме ?step картинку не стирать после кадра — иначе скриншот ловит пустой холст.
+      gl={{ antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: STEP_MODE }}
       className="game-canvas"
     >
       {STEP_MODE && <DebugStepper />}
@@ -63,6 +68,8 @@ export function GameCanvas() {
         onIncline={() => setDpr(1.25)}
       />
       <fog attach="fog" args={[palette.skyBottom, 60, 170]} />
+      {/* Время суток: ночь в лобби → рассвет на итогах; красит небо, свет, туман и облака. */}
+      <AtmosphereDriver />
       <WindowCamera />
       <Sky />
       <Lights />

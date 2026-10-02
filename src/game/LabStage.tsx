@@ -3,6 +3,7 @@ import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postp
 import { Physics } from '@react-three/rapier'
 import { ToneMappingMode } from 'postprocessing'
 import { Suspense, type ReactNode } from 'react'
+import { AtmosphereDriver } from './atmosphere/AtmosphereDriver'
 import { Bursts, Clouds, Lights, Sky } from './Environment'
 import { palette } from './palette'
 import { Lobby } from './scenes/lobby/Lobby'
@@ -43,6 +44,7 @@ export function LabStage({ low, children }: { low: boolean; children: ReactNode 
       className="game-canvas"
     >
       <fog attach="fog" args={[palette.skyBottom, 60, 170]} />
+      <AtmosphereDriver />
       <WindowCamera />
       <Sky />
       <Lights />

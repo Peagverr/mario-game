@@ -11,7 +11,7 @@ export const PHYSICAL_SCREEN_W = 0.31
 export const WINDOW_W = 14
 /** Наклон взгляда вниз. */
 export const PITCH = (27 * Math.PI) / 180
-/** Пределы наклона щипком: чтобы не уйти под землю и не смотреть строго сверху. */
+/** Пределы наклона левым кулаком: чтобы не уйти под землю и не смотреть строго сверху. */
 export const PITCH_MIN = (10 * Math.PI) / 180
 export const PITCH_MAX = (60 * Math.PI) / 180
 /** Усиление движения головы. */

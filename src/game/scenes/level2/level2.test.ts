@@ -70,7 +70,7 @@ describe('уровень «Загляни»: тайные звёзды в дво
       for (const focus of standSpots(c, [0.8, 1.5, 3])) expect(seen(c, focus, 0.075)).toBeGreaterThanOrEqual(SEEN_POINTS)
   })
 
-  it('или потяни мир щипком вниз — видно и без головы', () => {
+  it('или потяни мир левым кулаком вниз — видно и без головы', () => {
     for (const c of level2.courtyards)
       for (const focus of standSpots(c, [0.8, 1.5, 3])) expect(seen(c, focus, 0, PITCH + 0.4)).toBeGreaterThanOrEqual(SEEN_POINTS)
   })

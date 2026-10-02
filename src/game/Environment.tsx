@@ -1,62 +1,118 @@
-import { Outlines } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
-import { BackSide, Color, InstancedMesh, Object3D, type DirectionalLight, type Group } from 'three'
-import { palette } from './palette'
+import { BackSide, Color, InstancedMesh, MeshToonMaterial, Object3D, Vector3, type DirectionalLight, type Group, type HemisphereLight, type ShaderMaterial } from 'three'
+import { atmo } from './atmosphere/AtmosphereDriver'
 import { runtime } from './runtime'
 import { toonGradient } from './toon'
 
-/** Небо-градиент: сверху голубое, у горизонта тёплое. Туман того же цвета — мир «растворяется» вдали. */
+/** Луна ночью — сверху справа, чтобы не спорить с местом будущего восхода (слева позади островов). */
+const MOON_DIR = new Vector3(0.55, 0.42, -0.72).normalize()
+
+const SKY_VERT = `varying vec3 vPos; void main(){ vPos = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`
+const SKY_FRAG = `
+uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom;
+uniform vec3 sunDir; uniform vec3 sunColor; uniform float sunGlow;
+uniform vec3 moonDir; uniform float stars; uniform float time;
+varying vec3 vPos;
+
+float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+
+void main() {
+  vec3 d = normalize(vPos);
+  float y = d.y;
+  vec3 c = y > 0.0 ? mix(horizon, top, smoothstep(0.0, 0.55, y)) : mix(horizon, bottom, smoothstep(0.0, -0.45, y));
+
+  // Солнце: тёплое свечение у горизонта (ещё до восхода), корона и диск.
+  float sd = max(dot(d, sunDir), 0.0);
+  float band = exp(-abs(y) * 6.0);
+  c += sunColor * sunGlow * (pow(sd, 5.0) * 0.35 * (0.4 + band) + pow(sd, 48.0) * 0.8);
+  c += sunColor * sunGlow * smoothstep(0.99935, 0.99965, sd) * 5.0;
+
+  // Звёзды: по точке на ячейку неба, мерцают; к горизонту и к рассвету гаснут.
+  if (stars > 0.001) {
+    vec3 p = d * 180.0;
+    vec3 id = floor(p);
+    float h = hash(id);
+    float s = step(0.993, h) * smoothstep(0.45, 0.0, length(fract(p) - 0.5));
+    float tw = 0.65 + 0.35 * sin(time * (1.5 + h * 4.0) + h * 40.0);
+    c += vec3(0.85, 0.9, 1.0) * s * tw * stars * smoothstep(-0.02, 0.25, y) * 2.2;
+  }
+
+  // Луна: маленький холодный диск с ореолом, только ночью.
+  float md = max(dot(d, moonDir), 0.0);
+  c += vec3(0.75, 0.82, 1.0) * stars * (smoothstep(0.99955, 0.99975, md) * 2.4 + pow(md, 300.0) * 0.25);
+
+  gl_FragColor = vec4(c, 1.0);
+}`
+
+/** Небо со звёздами, луной и солнцем — цвета от времени суток (atmosphere). Едет за героем: горизонт всегда далеко. */
 export function Sky() {
   const uniforms = useMemo(
     () => ({
-      top: { value: new Color(palette.skyTop) },
-      horizon: { value: new Color(palette.skyHorizon) },
-      bottom: { value: new Color(palette.skyBottom) },
+      top: { value: new Color() },
+      horizon: { value: new Color() },
+      bottom: { value: new Color() },
+      sunDir: { value: new Vector3() },
+      sunColor: { value: new Color() },
+      sunGlow: { value: 0 },
+      moonDir: { value: MOON_DIR },
+      stars: { value: 0 },
+      time: { value: 0 },
     }),
     [],
   )
   const ref = useRef<Group>(null)
-  useFrame(() => ref.current?.position.copy(runtime.playerPos))
+  const mat = useRef<ShaderMaterial>(null)
+  useFrame(({ clock }) => {
+    ref.current?.position.copy(runtime.playerPos)
+    const u = mat.current?.uniforms
+    if (!u) return
+    u.top.value.copy(atmo.skyTop)
+    u.horizon.value.copy(atmo.skyHorizon)
+    u.bottom.value.copy(atmo.skyBottom)
+    u.sunDir.value.copy(atmo.sunDir)
+    u.sunColor.value.copy(atmo.sunColor)
+    u.sunGlow.value = atmo.sunGlow
+    u.stars.value = atmo.stars
+    u.time.value = clock.elapsedTime
+  })
   return (
     <group ref={ref}>
-      <mesh scale={300}>
-        <sphereGeometry args={[1, 32, 16]} />
-        <shaderMaterial
-          side={BackSide}
-          depthWrite={false}
-          fog={false}
-          uniforms={uniforms}
-          vertexShader={`varying vec3 vPos; void main(){ vPos = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`}
-          fragmentShader={`uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom; varying vec3 vPos;
-            void main(){
-              float y = vPos.y;
-              vec3 c = y > 0.0 ? mix(horizon, top, smoothstep(0.0, 0.55, y)) : mix(horizon, bottom, smoothstep(0.0, -0.45, y));
-              gl_FragColor = vec4(c, 1.0);
-            }`}
-        />
+      <mesh scale={300} renderOrder={-1}>
+        <sphereGeometry args={[1, 48, 24]} />
+        <shaderMaterial ref={mat} side={BackSide} depthWrite={false} fog={false} uniforms={uniforms} vertexShader={SKY_VERT} fragmentShader={SKY_FRAG} />
       </mesh>
     </group>
   )
 }
 
-/** Солнце следует за героем, чтобы тени всегда были чёткими рядом с ним. */
+/**
+ * Свет от времени суток: ключевой (ночью луна, к рассвету солнце) + мягкий свет неба и земли.
+ * Ключевой свет следует за героем, чтобы тени всегда были чёткими рядом с ним.
+ */
 export function Lights() {
   const sun = useRef<DirectionalLight>(null)
+  const hemi = useRef<HemisphereLight>(null)
   useFrame(() => {
     const s = sun.current
     if (!s) return
-    s.position.set(runtime.playerPos.x + 8, runtime.playerPos.y + 16, runtime.playerPos.z + 6)
+    s.position.copy(runtime.playerPos).addScaledVector(atmo.keyDir, 20)
     s.target.position.copy(runtime.playerPos)
     s.target.updateMatrixWorld()
+    s.color.copy(atmo.keyColor)
+    s.intensity = atmo.keyIntensity
+    const h = hemi.current
+    if (h) {
+      h.color.copy(atmo.hemiSky)
+      h.groundColor.copy(atmo.hemiGround)
+      h.intensity = atmo.hemiIntensity
+    }
   })
   return (
     <>
-      <hemisphereLight args={['#dff0ff', '#ffd9a8', 1.1]} />
+      <hemisphereLight ref={hemi} />
       <directionalLight
         ref={sun}
-        intensity={2.4}
-        color="#fff1d6"
         castShadow
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-18}
@@ -86,7 +142,10 @@ export function Clouds() {
     }))
   }, [])
   const refs = useRef<(Group | null)[]>([])
+  // Один материал на все облака: ночью они тёмно-синие, на рассвете — розовые, утром — белые.
+  const mat = useMemo(() => new MeshToonMaterial({ gradientMap: toonGradient }), [])
   useFrame((_, dt) => {
+    mat.color.copy(atmo.cloud)
     clouds.forEach((c, i) => {
       const g = refs.current[i]
       if (!g) return
@@ -100,10 +159,8 @@ export function Clouds() {
       {clouds.map((c, i) => (
         <group key={i} ref={(g) => void (refs.current[i] = g)} scale={c.s}>
           {c.puffs.map(([x, y, z, r], j) => (
-            <mesh key={j} position={[x, y, z]}>
+            <mesh key={j} position={[x, y, z]} material={mat}>
               <sphereGeometry args={[r, 12, 10]} />
-              <meshToonMaterial color={palette.cloud} gradientMap={toonGradient} />
-              <Outlines thickness={0.02} color="#c9d8ea" />
             </mesh>
           ))}
         </group>
