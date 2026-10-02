@@ -38,9 +38,13 @@ export function HUD() {
   const secrets = useGame((s) => s.secretsFound)
   const secretsTotal = useGame((s) => s.secretsTotal)
   const [time, setTime] = useState(0)
+  const [grabbing, setGrabbing] = useState(false)
 
   useEffect(() => {
-    const id = setInterval(() => setTime(runSeconds(useGame.getState())), 250)
+    const id = setInterval(() => {
+      setTime(runSeconds(useGame.getState()))
+      setGrabbing(control.view.grabbing)
+    }, 150)
     return () => clearInterval(id)
   }, [])
 
@@ -64,6 +68,7 @@ export function HUD() {
           <div className="hud__pill hud__pill--time">{formatTime(time)}</div>
         </>
       )}
+      {grabbing && <div className="hud__pill hud__pill--grab">держишь мир</div>}
       <div className="hud__legend">
         <span>ладонь в круг — готов</span>
         <span>сдвинь ладонь — иди</span>

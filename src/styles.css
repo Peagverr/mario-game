@@ -333,3 +333,4 @@ body {
 }
 .holo-rec__big { font: 800 40px var(--font-head); }
 .holo-rec__big.is-rec { color: var(--coral); }
+.hud__pill--grab { white-space: nowrap; font: 700 16px var(--font-head); background: var(--teal); color: #fff; animation: pop-in 0.25s ease-out; }

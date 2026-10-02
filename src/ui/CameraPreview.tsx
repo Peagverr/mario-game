@@ -45,13 +45,11 @@ function debugLine() {
   return parts.filter(Boolean).join(' · ')
 }
 
-/** Что делает щипок левой: один щипок — одно действие, выбирается первыми движениями. */
+/** Что делает щипок левой: двигает мир (поворот и наклон вместе) или приближает — решают первые движения. */
 function describePinch() {
   const v = control.view
   if (v.mode === 'zoom') return `Левая: зум ×${v.zoom.toFixed(1)}`
-  if (v.mode === 'yaw') return 'Левая: поворот'
-  if (v.mode === 'pitch') return 'Левая: наклон'
-  if (v.mode === 'free') return 'Левая: поворот и наклон'
+  if (v.mode === 'move') return 'Левая: держишь мир'
   return 'Левая: щипок — веди или толкай'
 }
 

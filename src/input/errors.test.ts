@@ -52,6 +52,13 @@ describe('подсказка «заведи ладонь в круг»', () => {
   })
 })
 
+describe('щипок левой', () => {
+  it('пальцы почти сомкнуты — подсказки «сведи плотнее» больше нет', () => {
+    const left = { ...openPalm(), pinchRatio: 0.6, pinching: false, curls: ['half', 'half', 'extended', 'extended', 'extended'] as HandState['curls'] }
+    expect(codes({ left })).toEqual([])
+  })
+})
+
 describe('чёрный кадр', () => {
   it('камера показывает чёрный кадр — одна подсказка про камеру, без «темно», «не вижу лицо» и «подними руку»', () => {
     const black = { brightness: 0.01, right: null, head: { z: 0.6, visible: false, yawDeg: 0 }, noFaceMs: 5000, noHandsMs: 5000, inTutorial: true }

@@ -1,15 +1,37 @@
 import { PerformanceMonitor } from '@react-three/drei'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { Physics } from '@react-three/rapier'
 import { ToneMappingMode } from 'postprocessing'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useGame } from '../shared/gameStore'
 import { Bursts, Clouds, Lights, Sky } from './Environment'
 import { palette } from './palette'
 import { runtime } from './runtime'
 import { SCENES } from './scenes'
 import { WindowCamera } from './WindowCamera'
+
+/**
+ * Отладка (только с ?step в адресе): игра не крутится сама, кадры прокручиваются вручную ровными шагами —
+ * window.__advance(кадров, шаг). Так физику можно проверить, даже когда вкладка скрыта и браузер не рисует кадры.
+ */
+const STEP_MODE = new URLSearchParams(location.search).has('step')
+
+function DebugStepper() {
+  const advance = useThree((s) => s.advance)
+  useEffect(() => {
+    let t = 0
+    Object.assign(window, {
+      __advance: (frames = 1, dt = 1 / 60) => {
+        for (let i = 0; i < frames; i++) {
+          t += dt
+          advance(t)
+        }
+      },
+    })
+  }, [advance])
+  return null
+}
 
 /**
  * 3D-сцена целиком: камера-«окно», свет, небо, физика, текущий уровень и постобработка.
@@ -24,7 +46,14 @@ export function GameCanvas() {
   const [dpr, setDpr] = useState(1.25)
 
   return (
-    <Canvas shadows dpr={dpr} gl={{ antialias: false, powerPreference: 'high-performance' }} className="game-canvas">
+    <Canvas
+      shadows
+      dpr={dpr}
+      frameloop={STEP_MODE ? 'never' : 'always'}
+      gl={{ antialias: false, powerPreference: 'high-performance' }}
+      className="game-canvas"
+    >
+      {STEP_MODE && <DebugStepper />}
       <PerformanceMonitor
         onDecline={() => {
           setDpr(1)

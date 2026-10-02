@@ -25,11 +25,13 @@ const CURLED_RATIO = 1.2
 
 /** Щипок: включается, когда пальцы ближе PINCH_ON, выключается дальше PINCH_OFF (запас против мигания). */
 export const PINCH_ON = 0.38
-export const PINCH_OFF = 0.58
+export const PINCH_OFF = 0.5
 /** По картинке щипок можно только НАЧАТЬ, и только при явном касании: большой палец часто просто заслоняет указательный. */
 const PINCH_ON_IMAGE = 0.22
+/** …а отпустить по картинке можно, когда кончики явно разошлись (0.6, а не меньше: наклонённая ладонь на картинке короче). */
+const PINCH_OFF_IMAGE = 0.6
 /** Щипок не отпускается, пока пальцы разведены меньше этого времени — один плохой кадр его не оборвёт. */
-const PINCH_RELEASE_MS = 150
+const PINCH_RELEASE_MS = 70
 
 /** Переводит точку в «квадратные» координаты, чтобы расстояния по x и y были сравнимы. */
 function sq(p: Point, aspect: number) {
@@ -105,11 +107,15 @@ export class HandTracker {
     const pinchWorld = dist(world[4], world[8]) / (dist(world[0], world[9]) || 1e-6)
     const pinchImage = dist(s[4], s[8]) / (size || 1e-6)
     const pinchRatio = pinchWorld
+    // Для отпускания — объёмные точки без сглаживания: фильтр дрожания добавлял бы задержку («мир едет за рукой»).
+    const rw = rawWorld.length === 21 ? rawWorld : world
+    const pinchWorldRaw = dist(rw[4], rw[8]) / (dist(rw[0], rw[9]) || 1e-6)
     // Указательный не должен быть сжат в кулак — иначе кулак с прижатым большим пальцем выглядит как щипок.
     const indexFree = curls[1] !== 'curled'
     if (this.pinching) {
-      // Отпускание решают только объёмные точки — по картинке щипок «залипал».
-      if (pinchWorld < PINCH_OFF) this.pinchOpenSince = 0
+      // Разжал — отпускаем, как только это видно хоть одним способом: по объёмным точкам или по картинке.
+      const opened = pinchWorldRaw > PINCH_OFF || pinchImage > PINCH_OFF_IMAGE
+      if (!opened) this.pinchOpenSince = 0
       else if (!this.pinchOpenSince) this.pinchOpenSince = t
       else if (t - this.pinchOpenSince > PINCH_RELEASE_MS) this.pinching = false
     } else if (indexFree && (pinchWorld < PINCH_ON || (pinchImage < PINCH_ON_IMAGE && pinchWorld < PINCH_OFF))) {

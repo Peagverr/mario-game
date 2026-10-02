@@ -21,12 +21,14 @@ type Step = {
   onDone?: () => void
   /** Реплика голоса в начале шага и когда шаг выполнен. */
   voice?: string
+  /** Реплика перед voice (очередь голоса ставит их друг за другом). */
+  voicePre?: string
   voiceDone?: string
   /** Клип голограммы-подсказки рядом с героем; шаг выполнен — голограмма рассыпается. */
   holo?: string
 }
 
-type StepCtx = { acc: number; start: { jumpSeq: number; yaw: number; headX: number; pauseSeq: number } }
+type StepCtx = { acc: number; start: { jumpSeq: number; yaw: number; pitch: number; headX: number; pauseSeq: number } }
 
 /** Голограмма руки в обучении выключена: вместо неё будет дух-компаньон (src/game/spirit). Код и запись жестов (`?record`) остаются. */
 const SHOW_HOLO_HAND = false
@@ -41,22 +43,16 @@ const hold = (cond: boolean, ctx: StepCtx, dt: number, ms: number) => {
 
 const STEPS: Step[] = [
   {
-    id: 'face',
-    title: 'Сядь напротив камеры',
-    text: 'Примерно на расстоянии вытянутой руки, лицо — в мини-окне слева внизу.',
-    check: (c, dt) =>
-      hold((control.head.visible && control.head.z > 0.33 && control.head.z < 1.15) || control.devKeyboard, c, dt, 800),
-    // «Камера включена. Я тебя вижу» звучит сразу при входе в обучение (VoiceDirector).
-    voiceDone: 'awake.intro',
-  },
-  {
-    // Калибровка: там, где руке удобно, встанет круг-джойстик.
+    // Калибровка: там, где руке удобно, встанет круг-джойстик. Круг ставится относительно лица —
+    // поэтому ждём, чтобы и лицо было в кадре (отдельный шаг «сядь напротив камеры» больше не нужен).
     id: 'palm',
     title: 'Подними правую ладонь',
-    text: 'Справа от лица, где руке удобно. Подержи секунду — там встанет круг-джойстик: он виден в окне камеры слева внизу.',
-    check: (c, dt) => hold(!!control.hands.right?.openPalm || control.devKeyboard, c, dt, 1000),
+    text: 'Сядь напротив камеры и подними правую ладонь справа от лица, где руке удобно. Подержи секунду: там встанет круг-джойстик (он виден в окне камеры слева внизу).',
+    check: (c, dt) => hold((!!control.hands.right?.openPalm && control.head.visible) || control.devKeyboard, c, dt, 1000),
     onDone: calibrateJoystick,
     holo: 'palm-raise',
+    // «Камера включена. Я тебя вижу» звучит при входе в обучение (VoiceDirector), затем «Я — Окно…», затем инструкция.
+    voicePre: 'awake.intro',
     voice: 'walk.raise',
     voiceDone: 'walk.contact',
   },
@@ -81,8 +77,9 @@ const STEPS: Step[] = [
   {
     id: 'grab',
     title: 'Щипок левой рукой',
-    text: 'Соедини большой и указательный и веди руку в сторону — мир повернётся, вверх-вниз — наклонится, к камере и от неё — приблизится и отдалится. Один щипок — одно действие.',
-    check: (c) => Math.min(1, Math.abs(control.view.yaw - c.start.yaw) / 0.6),
+    text: 'Соедини большой и указательный и веди руку куда угодно: мир крутится и наклоняется, как будто держишь его. Руку к камере или от неё: приблизить или отдалить.',
+    check: (c) =>
+      Math.min(1, Math.max(Math.abs(control.view.yaw - c.start.yaw) / 0.6, Math.abs(control.view.pitch - c.start.pitch) / 0.3)),
     // Озвучка «подними левую ладонь» — под новый жест; пока поворот щипком, голос только хвалит.
     voiceDone: 'short.clean',
   },
@@ -105,7 +102,7 @@ const STEPS: Step[] = [
 export function Tutorial() {
   const [index, setIndex] = useState(0)
   const [progress, setProgress] = useState(0)
-  const ctx = useRef<StepCtx>({ acc: 0, start: { jumpSeq: 0, yaw: 0, headX: 0, pauseSeq: 0 } })
+  const ctx = useRef<StepCtx>({ acc: 0, start: { jumpSeq: 0, yaw: 0, pitch: 0, headX: 0, pauseSeq: 0 } })
   const step = STEPS[index]
   const current = useRef(step)
   current.current = step
@@ -124,11 +121,12 @@ export function Tutorial() {
     if (!step) return
     ctx.current = {
       acc: 0,
-      start: { jumpSeq: control.jumpSeq, yaw: control.view.yaw, headX: control.head.x, pauseSeq: control.pauseSeq },
+      start: { jumpSeq: control.jumpSeq, yaw: control.view.yaw, pitch: control.view.pitch, headX: control.head.x, pauseSeq: control.pauseSeq },
     }
     if (SHOW_HOLO_HAND && step.holo) showHolo(step.holo)
     else hideHolo()
     // Шаг уже выполнили, пока голос договаривал прошлое, — инструкция к нему больше не нужна.
+    if (step.voicePre) say(step.voicePre, { priority: PRIORITY.story, waitMs: 6000 })
     if (step.voice) say(step.voice, { priority: PRIORITY.story, waitMs: 6000, valid: () => current.current === step })
     let raf = 0
     let last = performance.now()

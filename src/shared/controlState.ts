@@ -23,7 +23,6 @@ export type HintCode =
   | 'dark'
   | 'hand-edge'
   | 'fist-partial'
-  | 'pinch-partial'
   | 'wrong-hand'
   | 'no-hands'
   | 'hand-turned'
@@ -124,7 +123,7 @@ export const control = {
    * Левая рука «держит мир»: поворот и наклон (радианы от обычного вида), приближение (1 = обычный вид).
    * mode — что делает текущий щипок: поворот, наклон, оба или зум ('' — щипка нет или ещё не решил).
    */
-  view: { yaw: 0, pitch: 0, zoom: 1, grabbing: false, mode: '' as '' | 'yaw' | 'pitch' | 'free' | 'zoom' },
+  view: { yaw: 0, pitch: 0, zoom: 1, grabbing: false, mode: '' as '' | 'move' | 'zoom' },
 
   /** Счётчик вызовов меню (две раскрытые ладони ~0,8 с). */
   pauseSeq: 0,
