@@ -30,7 +30,7 @@ const base: ErrorContext = {
   noHandsMs: 0,
   noFaceMs: 0,
   onlyLeftMs: 0,
-  leftLostWhilePinchMs: 0,
+  leftLostWhileGrabMs: 0,
   palmUnarmedMs: 0,
   wantsHands: true,
   inTutorial: false,
@@ -52,8 +52,14 @@ describe('подсказка «заведи ладонь в круг»', () => {
   })
 })
 
-describe('щипок левой', () => {
-  it('пальцы почти сомкнуты — подсказки «сведи плотнее» больше нет', () => {
+describe('левая рука', () => {
+  it('левая рука пропала посреди хвата кулаком — подсказка держать кулак к камере', () => {
+    const hints = detectCandidates({ ...base, leftLostWhileGrabMs: 600 })
+    const h = hints.find((x) => x.code === 'hand-turned')
+    expect(h?.text).toContain('кулак')
+  })
+
+  it('пальцы почти сомкнуты — подсказки «сведи плотнее» нет', () => {
     const left = { ...openPalm(), pinchRatio: 0.6, pinching: false, curls: ['half', 'half', 'extended', 'extended', 'extended'] as HandState['curls'] }
     expect(codes({ left })).toEqual([])
   })

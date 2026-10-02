@@ -24,8 +24,10 @@ const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`
  * Если руки снова окажутся перепутаны — поменять на true.
  */
 const SWAP_HANDEDNESS = false
-/** Сколько мс держать щипок, если левую руку на мгновение потеряли. */
+/** Сколько мс держать мир, если левую руку на мгновение потеряли. */
 const GRAB_LOST_GRACE_MS = 250
+/** Рука дальше этого (в ширинах лица) по другую сторону от лица — значит, MediaPipe перепутал левую и правую. */
+const HANDEDNESS_FACE_MARGIN = 0.6
 /** Лицо старше этого (мс) не годится, чтобы ставить кольцо ладони. */
 const FACE_FRESH_MS = 600
 /** Две раскрытые ладони столько держать, чтобы открылось меню. */
@@ -47,7 +49,7 @@ const faceAnchorFilter = new OneEuro3(1.2, 0.3)
 const hintFilter = new HintFilter()
 /** Ладонь у лица: кольцо-джойстик справа от лица (логика — в palmJoystick.ts). */
 const palmJoy = new PalmJoystick()
-/** Щипок левой: поворот, наклон и приближение мира (логика — в worldGrab.ts). */
+/** Левый кулак держит мир: поворот, наклон и приближение (логика — в worldGrab.ts). */
 const worldGrab = new WorldGrab()
 
 /** Внутреннее состояние жестов между кадрами. */
@@ -60,7 +62,7 @@ const s = {
   palmUnarmedSince: 0,
   wasFist: false,
   lastJump: 0,
-  /** Щипок левой идёт и когда левую руку видели в последний раз. */
+  /** Левый кулак держит мир и когда левую руку видели в последний раз. */
   grabbing: false,
   lastGrabAt: 0,
   pauseSince: 0,
@@ -69,8 +71,8 @@ const s = {
   lastFaceAt: 0,
   onlyLeftSince: 0,
   /** Когда левая рука пропала посреди щипка (скорее всего, повернулась ребром к камере). */
-  leftLostWhilePinchAt: 0,
-  wasLeftPinching: false,
+  leftLostWhileGrabAt: 0,
+  wasLeftGrabbing: false,
   frame: 0,
   lastFrameAt: 0,
   lastVideoTime: -1,
@@ -227,6 +229,16 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     const isRight = SWAP_HANDEDNESS ? label === 'Left' : label === 'Right'
     found.push({ side: isRight ? 'right' : 'left', points, world, gesture: res.gestures[i]?.[0]?.categoryName ?? 'None' })
   })
+  // Левый кулак держит мир, правый — прыжок: путать руки нельзя. Если рука явно с другой стороны от лица,
+  // чем её назвал MediaPipe (дальше HANDEDNESS_FACE_MARGIN ширин лица), верим положению, а не метке.
+  const f = faceAnchor(t)
+  if (f) {
+    for (const h of found) {
+      const dx = (h.points[0].x * aspect - f.x) / f.w
+      if (h.side === 'right' && dx < -HANDEDNESS_FACE_MARGIN) h.side = 'left'
+      else if (h.side === 'left' && dx > HANDEDNESS_FACE_MARGIN) h.side = 'right'
+    }
+  }
   // Если две руки получили одинаковую метку — решаем по положению: правее на экране = правая.
   if (found.length === 2 && found[0].side === found[1].side) {
     const [a, b] = found
@@ -239,13 +251,13 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
   for (const f of found) next[f.side] = trackers[f.side].update(f.points, f.world, f.gesture, aspect, t)
   if (!next.left) trackers.left.reset()
   if (!next.right) trackers.right.reset()
-  if (!next.left && s.wasLeftPinching) s.leftLostWhilePinchAt = t
-  if (next.left) s.leftLostWhilePinchAt = 0
-  s.wasLeftPinching = !!next.left?.pinching
+  if (!next.left && s.wasLeftGrabbing) s.leftLostWhileGrabAt = t
+  if (next.left) s.leftLostWhileGrabAt = 0
+  s.wasLeftGrabbing = !!next.left?.fist
   control.hands.left = next.left
   control.hands.right = next.right
   if (next.left || next.right) s.lastHandsAt = t
-  if (next.left && !next.right && next.left.openPalm && !next.left.pinching) {
+  if (next.left && !next.right && next.left.openPalm) {
     if (!s.onlyLeftSince) s.onlyLeftSince = t
   } else s.onlyLeftSince = 0
 
@@ -304,19 +316,23 @@ function applyJump(r: HandState | null, t: number) {
   s.wasFist = fist
 }
 
-/** Щипок левой держит мир: поворот, наклон, приближение (с замком оси — см. worldGrab.ts). */
+/**
+ * Левый кулак держит мир: сжал — схватил, повёл — мир крутится и наклоняется, к камере — приближается.
+ * Раньше был щипок, но боком его камера не видит, а кулак распознаётся надёжно и держать его легче.
+ */
 function applyGrab(l: HandState | null, t: number) {
-  // Руку на мгновение потеряли посреди щипка — не бросаем мир, ждём.
+  // Руку на мгновение потеряли посреди хвата — не бросаем мир, ждём.
   if (!l && s.grabbing && t - s.lastGrabAt < GRAB_LOST_GRACE_MS) return
-  const pinching = !!l?.pinching
-  control.view.grabbing = pinching
-  if (!l || !pinching) {
+  const grabbing = !!l?.fist
+  control.view.grabbing = grabbing
+  if (!l || !grabbing) {
     s.grabbing = false
     control.view.mode = ''
     return
   }
   s.lastGrabAt = t
-  const p = { x: (l.points[4].x + l.points[8].x) / 2, y: (l.points[4].y + l.points[8].y) / 2, size: l.size }
+  // Центр ладони стабилен, когда кулак сжат (кончики пальцев прыгают).
+  const p = { x: l.palm.x, y: l.palm.y, size: l.size }
   if (!s.grabbing) {
     const v = control.view
     worldGrab.start(p, { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom }, videoAspect())
@@ -416,7 +432,7 @@ function updateHints(t: number) {
     noHandsMs: t - s.lastHandsAt,
     noFaceMs: t - s.lastFaceAt,
     onlyLeftMs: s.onlyLeftSince ? t - s.onlyLeftSince : 0,
-    leftLostWhilePinchMs: s.leftLostWhilePinchAt ? t - s.leftLostWhilePinchAt : 0,
+    leftLostWhileGrabMs: s.leftLostWhileGrabAt ? t - s.leftLostWhileGrabAt : 0,
     palmUnarmedMs: s.palmUnarmedSince ? t - s.palmUnarmedSince : 0,
     wantsHands: active,
     inTutorial: phase === 'tutorial',

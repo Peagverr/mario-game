@@ -37,7 +37,7 @@ function debugLine() {
   const r = control.hands.right
   const h = control.head
   const parts = [
-    l ? `щипок ${l.pinchRatio.toFixed(2)}${l.pinching ? ' ✓' : ''}` : 'щипок —',
+    l ? `левая ${l.fist ? 'кулак ✓' : 'открыта'}` : 'левая —',
     r ? `пальцы ${r.curls.map((c) => (c === 'curled' ? '●' : c === 'half' ? '◐' : '○')).join('')}` : '',
     h.visible ? `голова x${(h.x * 100).toFixed(0)} y${(h.y * 100).toFixed(0)} z${(h.z * 100).toFixed(0)} см` : 'лицо —',
   ]
@@ -45,17 +45,17 @@ function debugLine() {
   return parts.filter(Boolean).join(' · ')
 }
 
-/** Что делает щипок левой: двигает мир (поворот и наклон вместе) или приближает — решают первые движения. */
-function describePinch() {
+/** Что делает левый кулак: двигает мир (поворот и наклон вместе) или приближает — решают первые движения. */
+function describeGrab() {
   const v = control.view
   if (v.mode === 'zoom') return `Левая: зум ×${v.zoom.toFixed(1)}`
   if (v.mode === 'move') return 'Левая: держишь мир'
-  return 'Левая: щипок — веди или толкай'
+  return 'Левая: кулак — веди или толкай'
 }
 
 function describe(h: HandState | null, side: 'left' | 'right') {
   if (!h) return side === 'right' ? 'Правая: нет' : 'Левая: нет'
-  if (side === 'left') return h.pinching ? describePinch() : 'Левая: видна'
+  if (side === 'left') return h.fist ? describeGrab() : 'Левая: видна'
   if (h.fist) return 'Правая: кулак → прыжок'
   const j = control.joystick
   if (j.suspended) return 'Правая: видна'
@@ -256,8 +256,8 @@ export function CameraPreview() {
           ctx.arc(p.x * W, p.y * H, bad.has(i) ? pulse : 2.5, 0, Math.PI * 2)
           ctx.fill()
         })
-        if (side === 'left' && h.pinching) {
-          const m = { x: (h.points[4].x + h.points[8].x) / 2, y: (h.points[4].y + h.points[8].y) / 2 }
+        if (side === 'left' && h.fist) {
+          const m = h.palm
           ctx.strokeStyle = COLORS.left
           ctx.lineWidth = 2
           ctx.beginPath()
