@@ -1,6 +1,7 @@
 import { Html } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody } from '@react-three/rapier'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Vector3 } from 'three'
 import { useGame } from '../../../shared/gameStore'
 import { bestRecord } from '../../../ui/leaderboard'
@@ -53,6 +54,16 @@ export function Lobby() {
 function Portal({ position, level, placeholder }: { position: [number, number, number]; level?: LevelInfo; placeholder: string }) {
   const color = level?.color ?? '#b9bfd3'
   const best = useMemo(() => (level ? bestRecord(level.id) : undefined), [level])
+  const sign = useRef<HTMLDivElement>(null)
+  // Таблички читаются, только когда порталы видно спереди: повернул мир боком — они налезали бы друг на друга.
+  useFrame(() => {
+    const el = sign.current
+    if (!el) return
+    const a = Math.abs(runtime.cameraYaw)
+    const k = a < 0.45 ? 1 : a > 0.8 ? 0 : 1 - (a - 0.45) / 0.35
+    el.style.opacity = k.toFixed(2)
+    el.style.visibility = k < 0.02 ? 'hidden' : 'visible'
+  })
 
   return (
     <RigidBody type="fixed" colliders={false} position={position}>
@@ -76,7 +87,7 @@ function Portal({ position, level, placeholder }: { position: [number, number, n
         />
       )}
       <Html center position={[0, 4.7, 0.3]} distanceFactor={42} zIndexRange={[10, 0]}>
-        <div className={`portal-sign ${level ? '' : 'is-locked'}`}>
+        <div ref={sign} className={`portal-sign ${level ? '' : 'is-locked'}`}>
           <b>{level?.title ?? placeholder}</b>
           <span>{level ? level.feature : 'скоро'}</span>
           {best && (

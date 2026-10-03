@@ -11,7 +11,7 @@ import { columnDrum, farKit, rockRoot, slabTop, TILE, worldUV } from './stoneKit
  * (верх ≤ +1 м от героя, руины до 5 м — линия взгляда на таком расстоянии выше даже при наклоне 10°).
  */
 
-type Props = { center?: [number, number, number]; count?: number; minR?: number; maxR?: number; seed?: number }
+type Props = { center?: [number, number, number]; count?: number; minR?: number; maxR?: number; seed?: number; lowCount?: number }
 
 function merge(parts: BufferGeometry[]) {
   const flat = parts.map((g) => (g.index ? g.toNonIndexed() : g))
@@ -20,7 +20,7 @@ function merge(parts: BufferGeometry[]) {
   return out
 }
 
-export function Surroundings({ center = [0, 0, 0], count = 16, minR = 44, maxR = 90, seed = 1 }: Props) {
+export function Surroundings({ center = [0, 0, 0], count = 16, minR = 60, maxR = 120, seed = 1, lowCount = 10 }: Props) {
   const fk = farKit()
   const geo = useMemo(() => {
     let r = seed * 7919 + 13
@@ -28,13 +28,15 @@ export function Surroundings({ center = [0, 0, 0], count = 16, minR = 44, maxR =
     const cliffs: BufferGeometry[] = []
     const stones: BufferGeometry[] = []
     const walls: BufferGeometry[] = []
-    for (let i = 0; i < count; i++) {
-      const az = (i / count) * Math.PI * 2 + (rnd() - 0.5) * 0.3
-      const dist = minR + rnd() * (maxR - minR)
+    // верхнее кольцо — вокруг, на уровне чуть ниже героя; нижний ярус — глубоко под сценой (видно, если смотреть вниз)
+    for (let i = 0; i < count + lowCount; i++) {
+      const low = i >= count
+      const az = low ? rnd() * Math.PI * 2 : (i / count) * Math.PI * 2 + (rnd() - 0.5) * 0.3
+      const dist = low ? 12 + rnd() * 55 : minR + rnd() * (maxR - minR)
       const x = Math.cos(az) * dist
       const z = Math.sin(az) * dist
-      const y = -2 - rnd() * 16
-      const w = 5 + rnd() * 9
+      const y = low ? -24 - rnd() * 22 : -2 - rnd() * 16
+      const w = (low ? 6 : 5) + rnd() * (low ? 12 : 9)
       const d = w * (0.6 + rnd() * 0.4)
       const rot = rnd() * Math.PI
       const place = (g: BufferGeometry) => g.rotateY(rot).translate(x, y, z)
@@ -56,7 +58,7 @@ export function Surroundings({ center = [0, 0, 0], count = 16, minR = 44, maxR =
       }
     }
     return { cliff: merge(cliffs), stone: merge(stones), wall: merge(walls) }
-  }, [count, minR, maxR, seed])
+  }, [count, minR, maxR, seed, lowCount])
 
   return (
     <group position={center}>

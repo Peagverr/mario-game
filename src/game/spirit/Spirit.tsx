@@ -52,6 +52,7 @@ const camRight = new Vector3()
 const camUp = new Vector3()
 const camPos = new Vector3()
 const inv = new Matrix4()
+const lookM = new Matrix4()
 const tmp = new Vector3()
 const tmp2 = new Vector3()
 const headW = new Vector3()
@@ -281,7 +282,10 @@ export function Spirit() {
     st.stretch += (Math.max(-0.1, Math.min(0.16, Math.abs(vUp) * 0.035 - Math.abs(vRight) * 0.012)) - st.stretch) * (1 - Math.exp(-8 * dt))
     g.position.copy(tmp)
     rollQ.setFromAxisAngle(Z, st.roll + loop * st.side)
-    g.quaternion.copy(camQ).multiply(rollQ)
+    // Плашка смотрит прямо на камеру (а не просто повёрнута как камера): у камеры-«окна» проекция смещена,
+    // и при виде сверху лучи шли к плашке под углом — тело уезжало за край и обрезалось.
+    lookM.lookAt(camPos, tmp, camUp)
+    g.quaternion.setFromRotationMatrix(lookM).multiply(rollQ)
     const sy = (1 + st.stretch) * grow * SCALE
     const sx = (grow * SCALE) / Math.sqrt(1 + st.stretch)
     g.scale.set(sx, sy, sx)

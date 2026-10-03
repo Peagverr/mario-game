@@ -92,7 +92,7 @@ export function Level3() {
       <Player spawn={[0, 1.2, 0]} killY={-10} />
       <Towers position={[6, 0, -6]} rotation={0.6} />
       <LightShafts shafts={SHAFTS} />
-      <Surroundings center={[6.5, 0, -6]} minR={48} maxR={100} seed={9} />
+      <Surroundings center={[6.5, 0, -6]} seed={9} />
     </>
   )
 }

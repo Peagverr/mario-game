@@ -35,13 +35,16 @@ const BODY_VERT = /* glsl */ `
   uniform vec3 uQuadCenter;
   uniform vec2 uQuadSize;
   varying vec3 vLocal;
+  varying vec2 vQuad;
   void main() {
+    vQuad = position.xy;
     vLocal = vec3(uQuadCenter.xy + position.xy * uQuadSize, uQuadCenter.z);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vLocal, 1.0);
   }
 `
 
 const BODY_FRAG = /* glsl */ `
+  varying vec2 vQuad;
   uniform vec3 uCam;
   uniform int uSteps;
   uniform float uTime;
@@ -143,7 +146,9 @@ const BODY_FRAG = /* glsl */ `
     if (!hit) {
       // Снаружи: голубой ореол без контура — дух из света, а не нарисованный (как на референсе).
       float fade = tailFade(pMin);
-      float aura = exp(-max(dMin, 0.0) / 0.09) * 0.5 * fade * (1.0 + 0.8 * uVoice);
+      // ореол гаснет к краям плашки — иначе виден квадрат
+      float edge = 1.0 - smoothstep(0.7, 0.98, max(abs(vQuad.x), abs(vQuad.y)));
+      float aura = exp(-max(dMin, 0.0) / 0.09) * 0.5 * fade * (1.0 + 0.8 * uVoice) * edge;
       if (aura < 0.01) discard;
       gl_FragColor = vec4(uRim * 0.55 * uGlow, aura * uOpacity);
       return;
@@ -201,7 +206,7 @@ export function makeBodyMaterial() {
     fragmentShader: BODY_FRAG,
     uniforms: {
       uQuadCenter: { value: new Vector3(0, 0.25, 0.6) },
-      uQuadSize: { value: new Vector2(0.85, 0.95) },
+      uQuadSize: { value: new Vector2(1.0, 1.15) },
       uCam: { value: new Vector3(0, 0, 10) },
       uSteps: { value: 56 },
       uTime: { value: 0 },

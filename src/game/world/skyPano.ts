@@ -1,4 +1,4 @@
-import { LinearMipmapLinearFilter, MathUtils, Matrix3, RepeatWrapping, ClampToEdgeWrapping, SRGBColorSpace, TextureLoader, type Camera, type Texture } from 'three'
+import { Color, LinearMipmapLinearFilter, MathUtils, Matrix3, RepeatWrapping, ClampToEdgeWrapping, SRGBColorSpace, TextureLoader, type Camera, type Texture } from 'three'
 import { atmo } from '../atmosphere/AtmosphereDriver'
 
 /**
@@ -32,6 +32,8 @@ export const panoUniforms = {
   panoMix: { value: 0 },
   /** Поворот из координат камеры в мировые (для дымки, которая знает только направление в камере). */
   viewToWorld: { value: new Matrix3() },
+  /** Цвет бездны: средний цвет облаков чуть ниже горизонта. Низ панорамы тёмный — круто вниз смотрим на него. */
+  abyss: { value: new Color(0.1, 0.15, 0.25) },
 }
 
 /**
@@ -42,12 +44,15 @@ export const PANO_GLSL = /* glsl */ `
 uniform sampler2D panoA;
 uniform sampler2D panoB;
 uniform float panoMix;
+uniform vec3 abyss;
 vec3 panoSample(vec3 d, float lod) {
   d = normalize(d);
+  float down = 1.0 - smoothstep(-0.75, -0.35, d.y); // 0 — выше −20°, 1 — почти отвесно вниз
   float lon = atan(-d.z, d.x);
   float lat = asin(clamp(d.y, -1.0, 1.0));
   vec2 uv = vec2(0.5 + lon / 6.2831853, 0.5 + lat / 3.1415927);
-  return mix(textureLod(panoA, uv, lod).rgb, textureLod(panoB, uv, lod).rgb, panoMix);
+  vec3 c = mix(textureLod(panoA, uv, lod).rgb, textureLod(panoB, uv, lod).rgb, panoMix);
+  return mix(c, abyss, down);
 }`
 
 /** Раз в кадр: какие две панорамы смешивать (по времени суток) и поворот камеры. */
@@ -64,7 +69,24 @@ export function updatePano(camera: Camera) {
     panoUniforms.panoMix.value = MathUtils.smoothstep(t, 0.62, 1)
   }
   panoUniforms.viewToWorld.value.setFromMatrix4(camera.matrixWorld)
+  // бездна — среднее по 8 направлениям на 17° ниже горизонта
+  const ab = panoUniforms.abyss.value
+  let r = 0
+  let g = 0
+  let b = 0
+  let n = 0
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    if (panoColorAt(Math.cos(a), -0.3, Math.sin(a), tmpC)) {
+      r += tmpC.r
+      g += tmpC.g
+      b += tmpC.b
+      n++
+    }
+  }
+  if (n) ab.setRGB(r / n, g / n, b / n)
 }
+const tmpC = { r: 0, g: 0, b: 0 }
 
 /** Уменьшенные копии панорам (64×32, линейный цвет) — чтобы брать цвет фона на процессоре (для обычного тумана). */
 const SW = 64

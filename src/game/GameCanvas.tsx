@@ -20,6 +20,7 @@ import { WindowCamera } from './WindowCamera'
  * window.__advance(кадров, шаг). Так физику можно проверить, даже когда вкладка скрыта и браузер не рисует кадры.
  */
 const STEP_MODE = new URLSearchParams(location.search).has('step')
+const HIGH_DPR = Math.min(window.devicePixelRatio || 1, 1.5)
 
 function DebugStepper() {
   const advance = useThree((s) => s.advance)
@@ -57,8 +58,9 @@ export function GameCanvas() {
   const sceneId = useGame((s) => s.sceneId)
   const Scene = SCENES[sceneId] ?? SCENES.lobby!
   const [quality, setQuality] = useState<'high' | 'low'>('high')
-  // Не выше 1: на экране с масштабом 125% иначе рисуется в 1.56 раза больше пикселей — а рядом работает распознавание рук.
-  const [dpr, setDpr] = useState(1)
+  // Чёткость как у экрана (не выше 1.5 — при отдалении камеры мелкие детали иначе «лесенкой»).
+  // Если кадров мало, PerformanceMonitor опускает до 1, а на слабом ноутбуке — до 0.85.
+  const [dpr, setDpr] = useState(HIGH_DPR)
 
   return (
     <Canvas
@@ -72,11 +74,15 @@ export function GameCanvas() {
       {STEP_MODE && <DebugStepper />}
       <PerformanceMonitor
         onDecline={() => {
-          setDpr(0.85)
-          setQuality('low')
-          runtime.lowQuality = true
+          // первый шаг — убрать сверхчёткость, второй — слабый режим
+          setDpr((d) => {
+            if (d > 1) return 1
+            setQuality('low')
+            runtime.lowQuality = true
+            return 0.85
+          })
         }}
-        onIncline={() => setDpr(1)}
+        onIncline={() => setDpr((d) => (runtime.lowQuality ? d : HIGH_DPR))}
       />
       <fog attach="fog" args={[palette.skyBottom, 60, 170]} />
       {/* Время суток: ночь в лобби → рассвет на итогах; красит небо, свет, туман и облака. */}

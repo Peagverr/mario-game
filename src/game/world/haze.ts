@@ -21,9 +21,11 @@ export type HazeOpts = {
   low?: number
   /** Контровой свет по краям: цветом неба за предметом + тёплый со стороны солнца. Даёт объём силуэтам. */
   rim?: number
+  /** Ближе этого к камере (м) — растворяется (дизеринг): декорация, к которой подлетела камера, не закрывает кадр. */
+  nearFade?: number
 }
 
-export function hazy<T extends MeshStandardMaterial>(mt: T, { far = 0.9, low = 0.85, rim = 0 }: HazeOpts = {}): T {
+export function hazy<T extends MeshStandardMaterial>(mt: T, { far = 0.9, low = 0.85, rim = 0, nearFade = 0 }: HazeOpts = {}): T {
   const f = (x: number) => x.toFixed(3)
   mt.onBeforeCompile = (shader) => {
     shader.uniforms.sunView = haze.sunView
@@ -37,6 +39,13 @@ export function hazy<T extends MeshStandardMaterial>(mt: T, { far = 0.9, low = 0
       .replace(
         '#include <fog_fragment>',
         `#ifdef USE_FOG
+          ${
+            nearFade > 0
+              ? `float nf = smoothstep(${f(nearFade * 0.55)}, ${f(nearFade)}, vFogDepth);
+          float dith = fract(dot(floor(gl_FragCoord.xy), vec2(0.5, 0.25)) + fract(floor(gl_FragCoord.y) * 0.5) * 0.5);
+          if (nf < 0.999 && nf <= dith) discard;`
+              : ''
+          }
           float hz = max(smoothstep(fogNear, fogFar * 1.7, vFogDepth) * ${f(far)}, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * ${f(low)});
           // цвет дымки — из панорамы в том же направлении (размыто): скала тает ровно в тот фон, что за ней
           vec3 wdir = viewToWorld * normalize(-vViewPosition);
@@ -53,7 +62,7 @@ export function hazy<T extends MeshStandardMaterial>(mt: T, { far = 0.9, low = 0
         #endif`,
       )
   }
-  mt.customProgramCacheKey = () => `world-haze-${f(far)}-${f(low)}-${f(rim)}`
+  mt.customProgramCacheKey = () => `world-haze-${f(far)}-${f(low)}-${f(rim)}-${f(nearFade)}`
   return mt
 }
 

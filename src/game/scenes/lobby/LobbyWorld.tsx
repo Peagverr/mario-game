@@ -133,7 +133,7 @@ export function LobbyWorld() {
       <GlowPools pools={poolList} />
       <LightShafts shafts={SHAFTS} />
       {/* Средний план со всех сторон: островки с руинами. */}
-      <Surroundings center={[0, 0, 0]} count={18} minR={42} maxR={95} seed={3} />
+      <Surroundings center={[0, 0, 0]} seed={3} />
       {/* Пылинки и светлячки над островом. */}
       <Sparkles count={low ? 25 : 70} scale={[22, 5, 16]} position={[0, 2.2, 0]} size={2.2} speed={0.25} opacity={0.7} color="#ffd59a" />
     </>

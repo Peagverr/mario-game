@@ -65,7 +65,7 @@ export function Level2() {
       <Player spawn={level2.spawn} killY={level2.killY} />
       <Towers position={[7, 0, -8]} />
       <LightShafts shafts={SHAFTS} />
-      <Surroundings center={[7, 0, -8]} minR={50} maxR={100} seed={7} />
+      <Surroundings center={[7, 0, -8]} seed={7} />
     </>
   )
 }

@@ -63,12 +63,12 @@ function makeKit() {
 }
 let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial; cliff: MeshStandardMaterial } | null = null
 /**
- * Те же камень, кладка и скалы для среднего плана (Surroundings): дымка слабее, плюс контровой свет по краям —
- * иначе островки за 50–100 м сливались в плоские синие силуэты.
+ * Те же камень, кладка и скалы для среднего плана (Surroundings): дымка слабее (иначе островки — плоские синие
+ * силуэты) и растворение у камеры — при повороте и отдалении камера может подлететь к островку вплотную.
  */
 export function farKit() {
   const k = stoneKit()
-  const mid = { far: 0.62, low: 0.6, rim: 0.4 }
+  const mid = { far: 0.55, low: 0.6, rim: 0, nearFade: 26 }
   return (far ??= { rock: hazy(k.rock.clone(), mid), wall: hazy(k.wall.clone(), mid), cliff: hazy(k.cliff.clone(), mid) })
 }
 /** Материалы мира (создаются один раз). */
