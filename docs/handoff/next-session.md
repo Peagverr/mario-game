@@ -17,7 +17,7 @@
 1. `git pull`, переключиться на эту ветку.
 2. В Blender (открыт `art/lobby.blend`, рендер Cycles на GPU):
    `exec(open(r'C:\Users\User\Desktop\mario\art\pano_tools.py').read())`, затем `for t in ('dusk','golden','dawn'): build_v2(t, W=4096, samples=64)`.
-   Пишет `public/textures/sky_*.jpg` (~1,5–2,5 МБ каждая). Посмотреть все три; если надо, подкрутить `TIMES` (`cloudE`, `exp`, `win`). Blend не пересохранять не обязательно: дальний город строится скриптом.
+   Пишет `public/textures/sky_*.jpg` (~1,5–2,5 МБ каждая). Посмотреть все три; если надо, подкрутить `TIMES` (`cloudE`, `exp`, `win`). Blend пересохранять не обязательно: дальний город строится скриптом.
 3. `npm run dev`, пройти лобби и 3 уровня: фон, островки вокруг, повёрнутый вид, мосты в уровне 3.
 4. `npm run typecheck && npm test && npm run build` → слить ветку в `main` (сайт обновится сам).
 5. Прогон с камерой: лаги, эффект окна. Chrome на RTX: Параметры Windows → Дисплей → Графика → Chrome → «Высокая производительность».
