@@ -33,16 +33,16 @@ export type AtmoKey = {
 export const KEYS: AtmoKey[] = [
   {
     t: 0,
-    skyTop: '#03060f',
-    skyHorizon: '#16203f',
-    skyBottom: '#070b1a',
-    sunElevation: -14,
+    skyTop: '#040915',
+    skyHorizon: '#2a3560',
+    skyBottom: '#141f45',
+    sunElevation: -6,
     sunColor: '#ff8a5a',
-    keyIntensity: 1.35,
+    keyIntensity: 1.6,
     keyColor: '#a9b8ff',
     hemiSky: '#4c63a6',
-    hemiGround: '#161c36',
-    hemiIntensity: 1.0,
+    hemiGround: '#272f55',
+    hemiIntensity: 1.25,
     fogNear: 4,
     fogFar: 62,
     stars: 1,
@@ -51,15 +51,15 @@ export const KEYS: AtmoKey[] = [
   {
     t: 0.3,
     skyTop: '#0b1734',
-    skyHorizon: '#3f4673',
-    skyBottom: '#10162f',
-    sunElevation: -6,
+    skyHorizon: '#4a4f7a',
+    skyBottom: '#1c2649',
+    sunElevation: -2.5,
     sunColor: '#ff8a5a',
-    keyIntensity: 1.35,
+    keyIntensity: 1.7,
     keyColor: '#a3b2ff',
     hemiSky: '#5a6cad',
-    hemiGround: '#1f2038',
-    hemiIntensity: 1.0,
+    hemiGround: '#2c2d4c',
+    hemiIntensity: 1.2,
     fogNear: 6,
     fogFar: 72,
     stars: 0.65,
@@ -122,8 +122,8 @@ export const KEYS: AtmoKey[] = [
 export const SCENE_TIME = { lobby: 0.1, level1: 0.35, level2: 0.6, level3: 0.85 } as const
 export const RESULTS_TIME = 1
 
-/** Солнце встаёт с этой стороны (градусы от «вглубь экрана» по часовой): позади островов, чуть левее — светит в контражур, как на референсе. */
-const SUN_AZIMUTH = -28
+/** Солнце встаёт с этой стороны (градусы от «вглубь экрана» по часовой): позади островов справа — контражур и тёплое зарево справа, как на референсе. */
+const SUN_AZIMUTH = 38
 
 export type Atmo = {
   t: number
@@ -146,6 +146,8 @@ export type Atmo = {
   stars: number
   /** Насколько видно солнце и свечение вокруг него (0 — глубокая ночь). */
   sunGlow: number
+  /** Тёплый контровой свет со стороны солнца (без теней): золотит края камней даже в сумерках, как на референсе. */
+  rimIntensity: number
 }
 
 export function createAtmo(): Atmo {
@@ -167,6 +169,7 @@ export function createAtmo(): Atmo {
     fogFar: 0,
     stars: 0,
     sunGlow: 0,
+    rimIntensity: 0,
   }
 }
 
@@ -214,8 +217,9 @@ export function sampleAtmo(t: number, out: Atmo = createAtmo()): Atmo {
 
   const elevation = n(a.sunElevation, b.sunElevation)
   sunDirection(elevation, out.sunDir)
-  // Свечение у горизонта появляется ещё до восхода (с −10°), к восходу — полное.
-  out.sunGlow = MathUtils.smoothstep(elevation, -10, 2)
+  // Свечение у горизонта появляется ещё до восхода (с −18°), к восходу — полное.
+  out.sunGlow = MathUtils.smoothstep(elevation, -18, 2)
+  out.rimIntensity = 0.3 + out.sunGlow * 1.5
   // Ключевой свет: пока солнце низко — светит луна, потом свет переходит к солнцу. Для теней солнце «поднято»
   // до 32° (диск в небе остаётся низко): иначе тени тянутся полосами через весь остров.
   const toSun = MathUtils.smoothstep(elevation, -4, 4)

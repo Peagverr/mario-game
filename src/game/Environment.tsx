@@ -5,8 +5,8 @@ import { atmo } from './atmosphere/AtmosphereDriver'
 import { runtime } from './runtime'
 import { toonGradient } from './toon'
 
-/** Луна ночью — сверху справа, чтобы не спорить с местом будущего восхода (слева позади островов). */
-const MOON_DIR = new Vector3(0.55, 0.42, -0.72).normalize()
+/** Луна ночью — сверху слева, чтобы не спорить с местом восхода (справа позади островов). */
+const MOON_DIR = new Vector3(-0.55, 0.42, -0.72).normalize()
 
 const SKY_VERT = `varying vec3 vPos; void main(){ vPos = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`
 const SKY_FRAG = `
@@ -90,10 +90,24 @@ export function Sky() {
  * Свет от времени суток: ключевой (ночью луна, к рассвету солнце) + мягкий свет неба и земли.
  * Ключевой свет следует за героем, чтобы тени всегда были чёткими рядом с ним.
  */
+const rimDir = new Vector3()
+
 export function Lights() {
   const sun = useRef<DirectionalLight>(null)
+  const rim = useRef<DirectionalLight>(null)
   const hemi = useRef<HemisphereLight>(null)
   useFrame(() => {
+    const r = rim.current
+    if (r) {
+      // Контровой свет: со стороны солнца, но поднят (~30°) — чтобы золотил верх камней, а не только бока.
+      rimDir.copy(atmo.sunDir)
+      rimDir.y = Math.max(rimDir.y, 0.6)
+      r.position.copy(runtime.playerPos).addScaledVector(rimDir.normalize(), 20)
+      r.target.position.copy(runtime.playerPos)
+      r.target.updateMatrixWorld()
+      r.color.copy(atmo.sunColor)
+      r.intensity = atmo.rimIntensity
+    }
     const s = sun.current
     if (!s) return
     s.position.copy(runtime.playerPos).addScaledVector(atmo.keyDir, 20)
@@ -111,6 +125,7 @@ export function Lights() {
   return (
     <>
       <hemisphereLight ref={hemi} />
+      <directionalLight ref={rim} />
       <directionalLight
         ref={sun}
         castShadow

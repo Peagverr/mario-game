@@ -1,4 +1,3 @@
-import { Outlines } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import { useRef } from 'react'
@@ -8,8 +7,8 @@ import { useGame } from '../shared/gameStore'
 import { palette } from './palette'
 import { burst, runtime } from './runtime'
 import { sfx } from './sfx'
-import { toonGradient } from './toon'
 import { capStep, snapToAxes, softEdges } from './walk'
+import { HeroModel } from './hero/HeroModel'
 
 const RADIUS = 0.35
 const HALF_HEIGHT = 0.35
@@ -244,7 +243,9 @@ export function Player({ spawn, killY }: Props) {
     >
       <CapsuleCollider args={[HALF_HEIGHT, RADIUS]} friction={0} />
       <group ref={visual}>
-        <Hero />
+        <group position={[0, -toFeet, 0]}>
+          <HeroModel grounded={() => st.current.grounded} />
+        </group>
       </group>
     </RigidBody>
     </>
@@ -255,43 +256,4 @@ export function Player({ spawn, killY }: Props) {
 function angleWrap(from: number, to: number) {
   const d = to - from
   return d > Math.PI ? -Math.PI * 2 : d < -Math.PI ? Math.PI * 2 : 0
-}
-
-/** Герой из простых фигур. Потом заменится на 3D-модель — снаружи ничего менять не придётся. */
-function Hero() {
-  const o = { thickness: 0.04, color: palette.ink }
-  return (
-    <group>
-      <mesh castShadow>
-        <capsuleGeometry args={[RADIUS, HALF_HEIGHT * 2, 6, 16]} />
-        <meshToonMaterial color={palette.hero} gradientMap={toonGradient} />
-        <Outlines {...o} />
-      </mesh>
-      <mesh position={[0, -0.05, 0.12]} castShadow>
-        <sphereGeometry args={[0.27, 16, 16]} />
-        <meshToonMaterial color={palette.heroCream} gradientMap={toonGradient} />
-      </mesh>
-      {[-0.12, 0.12].map((x) => (
-        <group key={x} position={[x, 0.28, 0.3]}>
-          <mesh>
-            <sphereGeometry args={[0.085, 12, 12]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[0, 0, 0.055]}>
-            <sphereGeometry args={[0.045, 10, 10]} />
-            <meshBasicMaterial color={palette.ink} />
-          </mesh>
-        </group>
-      ))}
-      <mesh position={[0, 0.45, 0]} castShadow>
-        <sphereGeometry args={[0.37, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshToonMaterial color={palette.teal} gradientMap={toonGradient} />
-        <Outlines {...o} />
-      </mesh>
-      <mesh position={[0, 0.47, 0.32]} rotation={[0.25, 0, 0]}>
-        <boxGeometry args={[0.5, 0.05, 0.3]} />
-        <meshToonMaterial color={palette.teal} gradientMap={toonGradient} />
-      </mesh>
-    </group>
-  )
 }

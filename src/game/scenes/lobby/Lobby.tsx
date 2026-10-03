@@ -1,23 +1,23 @@
-import { Html, Outlines, RoundedBox, Sparkles } from '@react-three/drei'
-import { useFrame } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import { CuboidCollider, RigidBody } from '@react-three/rapier'
-import { useEffect, useMemo, useRef } from 'react'
-import { Vector3, type Mesh, type MeshBasicMaterial } from 'three'
+import { useEffect, useMemo } from 'react'
+import { Vector3 } from 'three'
 import { useGame } from '../../../shared/gameStore'
 import { bestRecord } from '../../../ui/leaderboard'
-import { palette } from '../../palette'
 import { Player } from '../../Player'
 import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
-import { toonGradient } from '../../toon'
 import { LEVELS, type LevelInfo } from '../index'
 import { LobbyHolo } from '../../holo/LobbyHolo'
 import { Platforms } from '../level1/Platforms'
+import { LobbyWorld } from './LobbyWorld'
 import type { Platform } from '../level1/levelData'
 
 /**
  * Лобби: остров-хаб. Портал к каждому уровню из реестра LEVELS; зашёл в портал — начинается уровень.
  * Слотов под порталы три; если уровня ещё нет — портал серый с табличкой «скоро».
+ * Вид острова, арок и фонарей — модель из Blender (LobbyWorld); здесь только коллайдеры и таблички.
+ * Деревья в PLATFORMS остались ради коллайдеров: на их местах в модели стоят колонны.
  */
 
 const PLATFORMS: Platform[] = [
@@ -38,7 +38,8 @@ export function Lobby() {
   }, [])
   return (
     <>
-      <Platforms platforms={PLATFORMS} />
+      <Platforms platforms={PLATFORMS} visual={false} />
+      <LobbyWorld />
       {SLOTS.map((pos, i) => (
         <Portal key={i} position={pos} level={LEVELS[i]} placeholder={SLOT_TITLES[i]} />
       ))}
@@ -50,15 +51,8 @@ export function Lobby() {
 }
 
 function Portal({ position, level, placeholder }: { position: [number, number, number]; level?: LevelInfo; placeholder: string }) {
-  const disc = useRef<Mesh>(null)
   const color = level?.color ?? '#b9bfd3'
   const best = useMemo(() => (level ? bestRecord(level.id) : undefined), [level])
-  const o = { thickness: 0.04, color: palette.ink }
-
-  useFrame(({ clock }) => {
-    const m = disc.current?.material as MeshBasicMaterial | undefined
-    if (m) m.opacity = level ? 0.75 + Math.sin(clock.elapsedTime * 3) * 0.15 : 0.35
-  })
 
   return (
     <RigidBody type="fixed" colliders={false} position={position}>
@@ -81,22 +75,7 @@ function Portal({ position, level, placeholder }: { position: [number, number, n
           }}
         />
       )}
-      {[-1.15, 1.15].map((x) => (
-        <RoundedBox key={x} args={[0.56, 3.2, 0.56]} radius={0.12} position={[x, 1.6, 0]} castShadow>
-          <meshToonMaterial color={palette.stone} gradientMap={toonGradient} />
-          <Outlines {...o} />
-        </RoundedBox>
-      ))}
-      <RoundedBox args={[3, 0.5, 0.6]} radius={0.12} position={[0, 3.35, 0]} castShadow>
-        <meshToonMaterial color={level ? color : palette.stone} gradientMap={toonGradient} />
-        <Outlines {...o} />
-      </RoundedBox>
-      <mesh ref={disc} position={[0, 1.55, 0]}>
-        <planeGeometry args={[1.75, 2.9]} />
-        <meshBasicMaterial color={color} transparent opacity={0.8} toneMapped={false} />
-      </mesh>
-      {level && <Sparkles count={18} scale={[1.8, 2.8, 0.6]} position={[0, 1.55, 0.1]} size={4} speed={0.6} color={color} />}
-      <Html center position={[0, 3.4, 0.5]} distanceFactor={42} zIndexRange={[10, 0]}>
+      <Html center position={[0, 4.7, 0.3]} distanceFactor={42} zIndexRange={[10, 0]}>
         <div className={`portal-sign ${level ? '' : 'is-locked'}`}>
           <b>{level?.title ?? placeholder}</b>
           <span>{level ? level.feature : 'скоро'}</span>

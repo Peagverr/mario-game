@@ -9,3 +9,7 @@ public/mediapipe
 
 # Сырые блоки озвучки (ElevenLabs) — режутся в public/voice командой npm run voice
 voice_raw
+
+# Сырые выгрузки из Blender (сжатые копии лежат в public/models)
+art/export
+*.blend1

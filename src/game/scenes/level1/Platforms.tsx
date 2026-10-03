@@ -85,11 +85,11 @@ function PlatformColliders({ p }: { p: Platform }) {
   )
 }
 
-function StaticPlatform({ p }: { p: Platform }) {
+function StaticPlatform({ p, visual }: { p: Platform; visual: boolean }) {
   return (
     <RigidBody type="fixed" colliders={false} position={[p.x, p.top, p.z]}>
       <PlatformColliders p={p} />
-      {p.kind === 'island' ? <IslandMesh p={p} /> : <SlabMesh p={p} />}
+      {visual && (p.kind === 'island' ? <IslandMesh p={p} /> : <SlabMesh p={p} />)}
     </RigidBody>
   )
 }
@@ -127,10 +127,11 @@ function MovingPlatform({ p }: { p: Platform }) {
   )
 }
 
-export function Platforms({ platforms }: { platforms: Platform[] }) {
+/** visual={false} — только коллайдеры: вид платформ рисует сцена сама (например, модель из Blender в лобби). */
+export function Platforms({ platforms, visual = true }: { platforms: Platform[]; visual?: boolean }) {
   return (
     <>
-      {platforms.map((p, i) => (p.moving ? <MovingPlatform key={i} p={p} /> : <StaticPlatform key={i} p={p} />))}
+      {platforms.map((p, i) => (p.moving ? <MovingPlatform key={i} p={p} /> : <StaticPlatform key={i} p={p} visual={visual} />))}
     </>
   )
 }
