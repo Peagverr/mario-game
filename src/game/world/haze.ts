@@ -14,7 +14,17 @@ const haze = {
  * Цвет дымки берётся из панорамы неба в том же направлении (размыто) — скала тает ровно в тот фон, что за ней.
  * Без pow и перевёрнутых smoothstep — на части видеокарт они дают NaN, а свечение размазывает его по экрану.
  */
-export function hazy<T extends MeshStandardMaterial>(mt: T): T {
+export type HazeOpts = {
+  /** Предел дальней дымки (0..1). */
+  far?: number
+  /** Предел тумана по высоте — низ тонет в бездне (0..1). */
+  low?: number
+  /** Контровой свет по краям: цветом неба за предметом + тёплый со стороны солнца. Даёт объём силуэтам. */
+  rim?: number
+}
+
+export function hazy<T extends MeshStandardMaterial>(mt: T, { far = 0.9, low = 0.85, rim = 0 }: HazeOpts = {}): T {
+  const f = (x: number) => x.toFixed(3)
   mt.onBeforeCompile = (shader) => {
     shader.uniforms.sunView = haze.sunView
     shader.uniforms.sunTint = haze.sunTint
@@ -27,15 +37,23 @@ export function hazy<T extends MeshStandardMaterial>(mt: T): T {
       .replace(
         '#include <fog_fragment>',
         `#ifdef USE_FOG
-          float hz = max(smoothstep(fogNear, fogFar * 1.7, vFogDepth) * 0.9, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * 0.85);
+          float hz = max(smoothstep(fogNear, fogFar * 1.7, vFogDepth) * ${f(far)}, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * ${f(low)});
           // цвет дымки — из панорамы в том же направлении (размыто): скала тает ровно в тот фон, что за ней
           vec3 wdir = viewToWorld * normalize(-vViewPosition);
           vec3 hc = panoSample(wdir, 5.0) * 1.25; // та же яркость, что у неба (gain в Sky)
+          ${
+            rim > 0
+              ? `float rimF = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
+          rimF *= rimF;
+          float sunF = clamp(dot(normal, sunView), 0.0, 1.0);
+          gl_FragColor.rgb += (hc * 0.45 + sunTint * 2.0 * sunF) * rimF * ${f(rim)};`
+              : ''
+          }
           gl_FragColor.rgb = mix(gl_FragColor.rgb, hc, hz);
         #endif`,
       )
   }
-  mt.customProgramCacheKey = () => 'world-haze'
+  mt.customProgramCacheKey = () => `world-haze-${f(far)}-${f(low)}-${f(rim)}`
   return mt
 }
 

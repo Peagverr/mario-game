@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { BoxGeometry, type BufferGeometry } from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { columnDrum, farKit, rockRoot, slabTop, stoneKit, TILE, worldUV } from './stoneKit'
+import { columnDrum, farKit, rockRoot, slabTop, TILE, worldUV } from './stoneKit'
 
 /**
  * Средний план со всех сторон: кольцо парящих островков с руинами вокруг сцены (настоящая геометрия —
@@ -21,7 +21,6 @@ function merge(parts: BufferGeometry[]) {
 }
 
 export function Surroundings({ center = [0, 0, 0], count = 16, minR = 44, maxR = 90, seed = 1 }: Props) {
-  const kit = stoneKit()
   const fk = farKit()
   const geo = useMemo(() => {
     let r = seed * 7919 + 13
@@ -61,7 +60,7 @@ export function Surroundings({ center = [0, 0, 0], count = 16, minR = 44, maxR =
 
   return (
     <group position={center}>
-      <mesh geometry={geo.cliff} material={kit.cliff} />
+      <mesh geometry={geo.cliff} material={fk.cliff} />
       <mesh geometry={geo.stone} material={fk.rock} />
       <mesh geometry={geo.wall} material={fk.wall} />
     </group>

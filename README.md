@@ -42,3 +42,11 @@ npm run dev
 Открыть http://localhost:5173 в Chrome.
 
 Сделано на MediaPipe, Three.js и React. Голос «Окна» озвучен в ElevenLabs. Весь код написан после старта хакатона.
+
+## Что использовано
+
+- **Текстуры и модели [Poly Haven](https://polyhaven.com)** (лицензия CC0, можно без указания автора, но мы благодарим): rock_surface, stone_brick_wall_001, aerial_rocks_02, forest_leaves_02, weathered_planks, wooden_lantern_01. Небо qwantani_dusk_2_puresky использовалось только при рендере в Blender.
+- **Герой, лобби, башни и панорамы неба** собраны и отрендерены нами в [Blender](https://www.blender.org) (сцена в `art/lobby.blend`, панорамы делает скрипт `art/pano_tools.py`).
+- **Распознавание рук и лица:** [MediaPipe](https://ai.google.dev/edge/mediapipe) (Apache 2.0).
+- **3D и физика:** [Three.js](https://threejs.org), [React Three Fiber](https://r3f.docs.pmnd.rs), [Rapier](https://rapier.rs) (MIT и Apache 2.0).
+- **Голос:** [ElevenLabs](https://elevenlabs.io).

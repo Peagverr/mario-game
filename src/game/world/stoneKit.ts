@@ -61,11 +61,15 @@ function makeKit() {
     moss: stone('moss', [0.45, 0.52, 0.36]),
   }
 }
-let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial } | null = null
-/** Те же камень и кладка, но с дальней дымкой — для среднего плана (Surroundings). */
+let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial; cliff: MeshStandardMaterial } | null = null
+/**
+ * Те же камень, кладка и скалы для среднего плана (Surroundings): дымка слабее, плюс контровой свет по краям —
+ * иначе островки за 50–100 м сливались в плоские синие силуэты.
+ */
 export function farKit() {
   const k = stoneKit()
-  return (far ??= { rock: hazy(k.rock.clone()), wall: hazy(k.wall.clone()) })
+  const mid = { far: 0.6, low: 0.55, rim: 1 }
+  return (far ??= { rock: hazy(k.rock.clone(), mid), wall: hazy(k.wall.clone(), mid), cliff: hazy(k.cliff.clone(), mid) })
 }
 /** Материалы мира (создаются один раз). */
 export function stoneKit() {

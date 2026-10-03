@@ -13,9 +13,11 @@ def srgb(h):
 
 # Время суток — те же цвета, что таблица KEYS в src/game/atmosphere/atmosphere.ts, но богаче.
 TIMES = {
-    'dusk':   dict(el=-5.0, top='#0a1430', hor='#4a5a90', low='#30428a', deep='#1c2a60', sun='#ff8a5a', sunE=5.0, glow=1.3, sky=3.2, fog='#6a84c8', cloud='#c8d6ff', moon=2.2),
-    'golden': dict(el=1.5,  top='#1d3266', hor='#f0925e', low='#3a3a5e', deep='#1c1c38', sun='#ffa060', sunE=6.0, glow=1.6, sky=1.2, fog='#8a7aa0', cloud='#e8c0b0'),
-    'dawn':   dict(el=17.0, top='#4f92dc', hor='#ffdcb0', low='#a9c4e6', deep='#6d8cbf', sun='#fff0d4', sunE=6.0, glow=0.45, sky=1.6, fog='#b8cbe8', cloud='#ffffff'),
+    # сумерки: глубокий сине-бирюзовый, не фиолетовый; тёмная сторона подсвечена луной; тёплые огни в окнах
+    'dusk':   dict(el=-4.0, top='#0c2038', hor='#5f8db0', low='#355a7c', deep='#1a3048', sun='#ffae62', sunE=5.0, glow=1.0, sky=4.0, fog='#7fa6c8', cloud='#d4e4f4', moon=2.6, win=9.0, exp=0.35, cloudE=0.0012),
+    # золотой час: бирюзовый верх, тёплый янтарный горизонт (без лилового перехода)
+    'golden': dict(el=2.0,  top='#1f4a74', hor='#ffb46e', low='#5a6a80', deep='#2a3448', sun='#ffb066', sunE=6.5, glow=1.5, sky=2.6, fog='#b8a08a', cloud='#f6dcc4', moon=1.6, win=4.0, exp=0.45, cloudE=0.002),
+    'dawn':   dict(el=17.0, top='#4f92dc', hor='#ffdcb0', low='#a9c4e6', deep='#6d8cbf', sun='#fff0d4', sunE=6.0, glow=0.45, sky=1.6, fog='#b8cbe8', cloud='#ffffff', moon=0.0, win=0.0, exp=0.0),
 }
 AZ = math.radians(38)  # солнце справа позади (как SUN_AZIMUTH в atmosphere.ts)
 
@@ -56,6 +58,22 @@ def set_time(name):
     fv.inputs['Color'].default_value = (*srgb(k['fog']), 1)
     cv = bpy.data.materials['PanoClouds'].node_tree.nodes['V']
     cv.inputs['Color'].default_value = (*srgb(k['cloud']), 1)
+    # облака светятся изнутри цветом неба у горизонта — иначе в тени от низкого солнца они грязно-бурые
+    cv.inputs['Emission Color'].default_value = (*srgb(k['hor']), 1)
+    cv.inputs['Emission Strength'].default_value = k.get('cloudE', 0.0)
+    # тёплые огни в окнах башен (на рассвете гаснут)
+    wb = bpy.data.materials['TowerWindow'].node_tree.nodes['Principled BSDF']
+    wb.inputs['Emission Color'].default_value = (1.0, 0.62, 0.3, 1)
+    wb.inputs['Emission Strength'].default_value = k.get('win', 0.0)
+    fw = bpy.data.materials.get('PanoFarWindow')
+    if fw:
+        fb = fw.node_tree.nodes['Principled BSDF']
+        fb.inputs['Emission Color'].default_value = (1.0, 0.62, 0.3, 1)
+        fb.inputs['Emission Strength'].default_value = k.get('win', 0.0) * 0.35
+    # AgX — мягкий переход в светах (ореол солнца не выбивает в белое), тени не проваливаются в черноту
+    PANO.view_settings.view_transform = 'AgX'
+    PANO.view_settings.look = 'AgX - Medium High Contrast'
+    PANO.view_settings.exposure = k.get('exp', 0.0)
 
 # Грани: направление взгляда и «верх» (в координатах Blender).
 FACES = {
@@ -122,7 +140,8 @@ def save_jpg(arr, path, quality=88):
     img.save(filepath=path, quality=quality)
     bpy.data.images.remove(img)
 
-ROOT = r'C:\Users\User\Desktop\mario'
+# Корень проекта: из переменной MARIO_ROOT, иначе папка на ноутбуке.
+ROOT = os.environ.get('MARIO_ROOT', r'C:\Users\User\Desktop\mario')
 
 def build(tag, res=1024, W=2048):
     out = os.path.join(ROOT, 'art', 'export', 'pano')
@@ -146,4 +165,100 @@ def build_cycles(tag, W=2048, samples=48):
     bpy.ops.render.render(write_still=True, scene=P.name)
     a = load_rgb(raw)[:, ::-1]
     save_jpg(np.ascontiguousarray(a), os.path.join(ROOT, 'public', 'textures', f'sky_{tag}.jpg'))
+    return a.shape
+
+
+def add_far_city(seed=7, count=48):
+    """Дальний слой: город-руины на 520–1000 м, гуще и выше ближних башен. Тонет в дымке — даёт глубину
+    (ближние башни тёмные и чёткие, дальние — бледные силуэты, как на референсе). Пересоздаётся при каждом вызове."""
+    import bmesh, random
+    rnd = random.Random(seed)
+    old = bpy.data.objects.get('PanoFarCity')
+    if old: bpy.data.objects.remove(old, do_unlink=True)
+    mat = bpy.data.materials.get('PanoFarStone') or bpy.data.materials.new('PanoFarStone')
+    mat.use_nodes = True
+    b = mat.node_tree.nodes['Principled BSDF']
+    b.inputs['Base Color'].default_value = (*srgb('#5c544c'), 1); b.inputs['Roughness'].default_value = 0.95
+    # окна дальнего города — свой материал, тусклее ближних (иначе башни как гирлянды)
+    win = bpy.data.materials.get('PanoFarWindow') or bpy.data.materials['TowerWindow'].copy()
+    win.name = 'PanoFarWindow'
+    bm = bmesh.new()
+
+    def box(cx, cy, z0, sx, sy, h, rot, mi):
+        r = bmesh.ops.create_cube(bm, size=1.0)
+        vs = r['verts']
+        for v in vs:
+            x, y, z = v.co.x * sx, v.co.y * sy, (v.co.z + 0.5) * h + z0
+            c, s_ = math.cos(rot), math.sin(rot)
+            v.co = Vector((cx + x * c - y * s_, cy + x * s_ + y * c, z))
+        for f in {f for v in vs for f in v.link_faces}: f.material_index = mi
+
+    for i in range(count):
+        az = (i / count) * 2 * math.pi + rnd.uniform(-0.05, 0.05)
+        r = rnd.uniform(520, 1000)
+        cx, cy = math.cos(az) * r, math.sin(az) * r
+        rot = rnd.uniform(0, math.pi)
+        if rnd.random() < 0.3:
+            # широкая низкая крепость: стены и обломки
+            w = rnd.uniform(140, 260); d = w * rnd.uniform(0.3, 0.6)
+            H = rnd.uniform(40, 130); tiers = 2
+        else:
+            w = rnd.uniform(55, 130); d = w * rnd.uniform(0.5, 0.9)
+            H = 110 + 330 * rnd.random() ** 1.6; tiers = rnd.randint(2, 4)
+        z = rnd.uniform(-150, -100); top = H
+        # ступенчатая башня: 2–4 яруса, каждый уже и сдвинут — силуэт «крепости», а не шпиль
+        for t in range(tiers):
+            h = (top - z) / (tiers - t) * rnd.uniform(0.8, 1.2)
+            ox, oy = rnd.uniform(-0.15, 0.15) * w, rnd.uniform(-0.15, 0.15) * d
+            box(cx + ox, cy + oy, z, w, d, h, rot, 0)
+            # выступы-контрфорсы и обломки
+            if rnd.random() < 0.5:
+                bw = w * rnd.uniform(0.2, 0.4)
+                box(cx + ox + w * 0.55 * rnd.choice((-1, 1)), cy + oy, z + h * 0.2, bw, bw, h * rnd.uniform(0.4, 0.9), rot, 0)
+            # окна: редкие тусклые огни
+            for _ in range(rnd.randint(0, 2) if rnd.random() < 0.5 else 0):
+                a = rnd.uniform(0, 2 * math.pi)
+                box(cx + ox + math.cos(a) * w * 0.52, cy + oy + math.sin(a) * d * 0.52, z + rnd.uniform(0.2, 0.8) * h, 4, 4, 7, rot, 1)
+            z += h
+            w *= rnd.uniform(0.55, 0.8); d *= rnd.uniform(0.55, 0.8)
+        if rnd.random() < 0.12:  # шпиль
+            box(cx, cy, z, 6, 6, rnd.uniform(20, 50), rot, 0)
+        # мост к соседу
+        if rnd.random() < 0.3:
+            a2 = az + 2 * math.pi / count
+            mx, my = (cx + math.cos(a2) * r) / 2, (cy + math.sin(a2) * r) / 2
+            L = math.hypot(cx - math.cos(a2) * r, cy - math.sin(a2) * r)
+            box(mx, my, rnd.uniform(0, 120), 6, L * 0.9, 10, math.atan2(-(cx - math.cos(a2) * r), cy - math.sin(a2) * r), 0)
+    me = bpy.data.meshes.new('PanoFarCity')
+    bm.to_mesh(me); bm.free()
+    me.materials.append(mat); me.materials.append(win)
+    ob = bpy.data.objects.new('PanoFarCity', me)
+    PANO.collection.objects.link(ob)
+    # дымка и море облаков — шире дальнего города (иначе за 400 м воздух прозрачный и край облаков виден)
+    for name, half in (('PanoFogBox', 1300), ('PanoCloudSea', 1400)):
+        o = bpy.data.objects[name]
+        xs = [v.co.x for v in o.data.vertices]
+        cur = max(abs(x) for x in xs) * o.scale.x
+        if cur < half - 1:
+            k = half / cur
+            for v in o.data.vertices: v.co.x *= k; v.co.y *= k
+    return ob
+
+
+def build_v2(tag, W=4096, samples=32, out=None, step_rate=6.0):
+    """Новая версия: дальний город + AgX + огни, рендер Cycles на процессоре тоже возможен (bpy из pip)."""
+    if not bpy.data.objects.get('PanoFarCity'): add_far_city()
+    set_time(tag)
+    P = PANO
+    P.render.engine = 'CYCLES'; P.cycles.samples = samples; P.cycles.use_denoising = True
+    P.cycles.volume_step_rate = step_rate
+    P.render.resolution_x = W; P.render.resolution_y = W // 2; P.render.resolution_percentage = 100
+    P.render.image_settings.file_format = 'PNG'; P.render.image_settings.color_depth = '8'
+    raw = os.path.join(ROOT, 'art', 'export', 'pano', f'cy_{tag}_{W}.png')
+    os.makedirs(os.path.dirname(raw), exist_ok=True)
+    P.render.filepath = raw
+    bpy.ops.render.render(write_still=True, scene=P.name)
+    a = load_rgb(raw)[:, ::-1]
+    dst = out or os.path.join(ROOT, 'public', 'textures', f'sky_{tag}.jpg')
+    save_jpg(np.ascontiguousarray(a), dst, quality=84)
     return a.shape
