@@ -101,7 +101,7 @@ function GhostBridge({ b }: { b: Bridge }) {
   const collider = useRef<RapierCollider>(null)
   const planks = useRef<(Mesh | null)[]>([])
   const sign = useRef<HTMLDivElement>(null)
-  // true, чтобы в первом кадре коллайдер выключился (мост стартует рассыпанным).
+  // Было ли собрано в прошлом кадре: для вспышки при сборке и чтобы мост не рассыпался под героем.
   const wasSolid = useRef(true)
   const firstFrame = useRef(true)
 
@@ -141,8 +141,12 @@ function GhostBridge({ b }: { b: Bridge }) {
     const onBridge = Math.abs(local.x) < b.width / 2 + 0.4 && Math.abs(local.z) < geo.len / 2 + 0.3 && Math.abs(local.y - 0.7) < 1
     const solid = Math.abs(diff) < SNAP || (wasSolid.current && onBridge)
 
+    // Состояние пола сверяем каждый кадр, а не только при смене: физика может пересоздать коллайдер
+    // (перезапуск забега, пересборка тела), и новый создаётся включённым — по несобранному мосту можно было пройти.
+    const c = collider.current
+    if (c?.isValid() && c.isEnabled() !== solid) c.setEnabled(solid)
+
     if (solid !== wasSolid.current) {
-      collider.current?.setEnabled(solid)
       if (solid && !firstFrame.current) {
         flash.current = 1
         burst(geo.center.clone().setY(b.top + 0.5), palette.star, 26, 5)
