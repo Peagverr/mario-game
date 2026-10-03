@@ -9,6 +9,7 @@ import { hazy } from './haze'
  * На уровнях камера ближе, чем в лобби, поэтому весь фон отодвинут ещё на PUSH вглубь.
  */
 const PUSH = 30
+const TOWER_HAZE = { far: 0.7, low: 0.75 }
 const URL = `${import.meta.env.BASE_URL}models/towers.glb`
 
 export function Towers({ position = [0, 0, 0], rotation = 0 }: { position?: [number, number, number]; rotation?: number }) {
@@ -19,7 +20,8 @@ export function Towers({ position = [0, 0, 0], rotation = 0 }: { position?: [num
       const mesh = o as Mesh
       if (!mesh.isMesh) return
       const mats = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as MeshStandardMaterial[]
-      mesh.material = Array.isArray(mesh.material) ? mats.map((x) => hazy(x)) : hazy(mats[0])
+      // дымка слабее, чем у скал: башни — контрастные силуэты на фоне панорамы, а не бледные пятна
+      mesh.material = Array.isArray(mesh.material) ? mats.map((x) => hazy(x, TOWER_HAZE)) : hazy(mats[0], TOWER_HAZE)
     })
     return m
   }, [scene])

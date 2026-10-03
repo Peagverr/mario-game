@@ -6,6 +6,7 @@ import { HandTracker } from './gestures'
 import { estimateHead, FACE_PREVIEW_POINTS, yawFromMatrix } from './head'
 import { OneEuro3 } from './oneEuro'
 import { PalmJoystick, type FaceAnchor } from './palmJoystick'
+import { HandConfirm, isFaceGhost, type FaceOval } from './ghostHands'
 import { WorldGrab } from './worldGrab'
 
 /**
@@ -42,6 +43,8 @@ let video: HTMLVideoElement | null = null
 let running = false
 
 const trackers = { left: new HandTracker(), right: new HandTracker() }
+/** Подтверждение новых рук (защита от призраков, см. ghostHands.ts). */
+const confirm = { left: new HandConfirm(), right: new HandConfirm() }
 // Голова: быстрее реагирует на движение (эффект окна не должен запаздывать), в покое всё ещё гладко.
 const headFilter = new OneEuro3(1.6, 3)
 // Лицо для кольца ладони: сглажено сильнее, чтобы кольцо в мини-окне не дрожало.
@@ -56,6 +59,10 @@ const worldGrab = new WorldGrab()
 const s = {
   /** Лицо в «квадратных» координатах (x·ширина/высота): центр между зрачками и ширина от скулы до скулы. */
   face: null as FaceAnchor | null,
+  /** Сырой овал лица последнего кадра (без сглаживания — оно отстаёт от быстрой головы) и его скорость. */
+  faceOval: null as FaceOval | null,
+  faceSpeed: 0,
+  faceOvalAt: 0,
   /** Первые шаги обучения: кольцо следует за ладонью, герой стоит. */
   calibrating: false,
   /** С какого момента правая рука видна, но ещё не заходила в круг (0 — зашла или руки нет). */
@@ -152,8 +159,9 @@ async function createTasks() {
         baseOptions: { modelAssetPath: GESTURE_MODEL, delegate },
         runningMode: 'VIDEO',
         numHands: 2,
-        // Пониже, чтобы уже найденная рука не терялась при повороте (ребром к камере её почти не видно).
-        minHandDetectionConfidence: 0.5,
+        // Новую руку — только уверенно (на 0.5 лицо при быстром движении головы находилось как ладонь),
+        // а уже найденную держим на низких порогах, чтобы не терялась при повороте ребром к камере.
+        minHandDetectionConfidence: 0.65,
         minHandPresenceConfidence: 0.35,
         minTrackingConfidence: 0.35,
       }),
@@ -222,8 +230,11 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
   const aspect = video!.videoWidth / video!.videoHeight
   const found: { side: 'left' | 'right'; points: Point[]; world: Point[]; gesture: string }[] = []
 
+  const oval = faceAnchor(t) ? s.faceOval : null
   res.landmarks.forEach((lm, i) => {
     const points = lm.map(mirror)
+    // Рука-призрак на лице (MediaPipe путает лицо с ладонью при быстром движении головы) — пропускаем.
+    if (isFaceGhost(points.map(toSquare), oval, s.faceSpeed)) return
     const world = (res.worldLandmarks[i] ?? []).map((p) => ({ x: -p.x, y: p.y, z: p.z }))
     const label = res.handedness[i]?.[0]?.categoryName
     const isRight = SWAP_HANDEDNESS ? label === 'Left' : label === 'Right'
@@ -245,6 +256,12 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     const aRight = a.points[0].x > b.points[0].x
     a.side = aRight ? 'right' : 'left'
     b.side = aRight ? 'left' : 'right'
+  }
+
+  // Новая рука засчитывается, только если её видно несколько кадров подряд: призраки мелькают на 1–2 кадра.
+  for (const side of ['left', 'right'] as const) {
+    const ok = confirm[side].update(found.some((h) => h.side === side))
+    if (!ok) for (let i = found.length - 1; i >= 0; i--) if (found[i].side === side) found.splice(i, 1)
   }
 
   const next: { left: HandState | null; right: HandState | null } = { left: null, right: null }
@@ -398,6 +415,21 @@ function processFace(res: ReturnType<FaceLandmarker['detectForVideo']>, t: numbe
     t,
   )
   s.face = { x: f.x, y: f.y, w: f.z }
+  // Сырой овал лица (скулы 234/454, лоб 10, подбородок 152) — для отбраковки рук-призраков.
+  const oval: FaceOval = {
+    cx: ((points[234].x + points[454].x) / 2) * aspect,
+    cy: (points[10].y + points[152].y) / 2,
+    rx: (Math.abs(points[454].x - points[234].x) / 2) * aspect * 1.05,
+    ry: (Math.abs(points[152].y - points[10].y) / 2) * 1.1,
+  }
+  const prev = s.faceOval
+  const dtFace = t - s.faceOvalAt
+  if (prev && dtFace > 0 && dtFace < 300) {
+    const speed = Math.hypot(oval.cx - prev.cx, oval.cy - prev.cy) / (oval.rx * 2) / (dtFace / 1000)
+    s.faceSpeed += (speed - s.faceSpeed) * 0.5
+  }
+  s.faceOval = oval
+  s.faceOvalAt = t
   const m = res.facialTransformationMatrixes?.[0]?.data
   const yaw = m ? yawFromMatrix(m) : 0
   const h = headFilter.filter(estimateHead(points, video!.videoWidth, video!.videoHeight, yaw), t)
