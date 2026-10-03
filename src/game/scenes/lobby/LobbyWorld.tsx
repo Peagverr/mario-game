@@ -11,10 +11,10 @@ import {
   type Mesh,
   type MeshStandardMaterial,
 } from 'three'
-import { atmo } from '../../atmosphere/AtmosphereDriver'
 import { runtime } from '../../runtime'
 import { LEVELS } from '../index'
 import { LightShafts } from '../../LightShafts'
+import { hazy } from '../../world/haze'
 
 /**
  * Вид лобби из Blender (art/lobby.blend → public/models/lobby.glb): каменный остров с мхом и травой,
@@ -33,10 +33,11 @@ const LANTERNS: [number, number, number][] = [
 ]
 /** Лучи солнца падают на остров между арками. */
 const SHAFTS = [
-  { at: [3.6, 0, -1.2] as [number, number, number], length: 26, width: 0.9, seed: 1 },
-  { at: [6.8, 0, 1.8] as [number, number, number], length: 24, width: 1.2, seed: 2 },
-  { at: [-1.2, 0, -2.6] as [number, number, number], length: 28, width: 0.7, seed: 3 },
-  { at: [1.2, 0, 2.6] as [number, number, number], length: 22, width: 1.0, seed: 4 },
+  { at: [3.6, 0, -1.2] as [number, number, number], length: 26, width: 1.3, seed: 1 },
+  { at: [6.8, 0, 1.8] as [number, number, number], length: 24, width: 1.6, seed: 2 },
+  { at: [-1.2, 0, -2.6] as [number, number, number], length: 28, width: 1.0, seed: 3 },
+  { at: [1.2, 0, 2.6] as [number, number, number], length: 22, width: 1.4, seed: 4 },
+  { at: [-5.5, 0, 1.0] as [number, number, number], length: 24, width: 1.2, seed: 5 },
 ]
 const PORTALS: [number, number][] = [
   [-5.2, -3.6],
@@ -63,38 +64,6 @@ void main() {
   float glow = (0.18 + 0.35 * swirl * (1.0 - r * 0.6) + rim * 0.7) * (1.0 - smoothstep(0.92, 1.02, r));
   gl_FragColor = vec4(color * glow * 2.6, glow);
 }`
-
-/** Общие для дымки: направление на солнце в координатах камеры и его цвет (обновляются каждый кадр). */
-const haze = {
-  sunView: { value: new Vector3(0, 0, -1) },
-  sunTint: { value: new Color() },
-}
-
-/**
- * Дальняя дымка: обычный туман целиком съедает башни за 60+ м. Здесь он доходит максимум до 88%
- * и растянут дальше — башни остаются силуэтами. Плюс туман по высоте: чем ниже, тем гуще. Цвет дымки теплеет в сторону солнца
- * (приём «туман с рассеянием солнца», iquilezles.org/articles/fog): слева синяя глубина, справа зарево.
- */
-function hazy(mt: MeshStandardMaterial) {
-  mt.onBeforeCompile = (shader) => {
-    shader.uniforms.sunView = haze.sunView
-    shader.uniforms.sunTint = haze.sunTint
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nuniform vec3 sunView; uniform vec3 sunTint;')
-      .replace(
-        '#include <fog_fragment>',
-        `#ifdef USE_FOG
-          // по расстоянию + по высоте: низ острова и скалы тонут в дымке бездны
-          float hz = max(smoothstep(fogNear, fogFar * 2.6, vFogDepth) * 0.88, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * 0.85);
-          float ts = max(dot(normalize(-vViewPosition), sunView), 0.0);
-          float toSun = ts * ts * ts;
-          vec3 hc = fogColor + sunTint * toSun;
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, hc, hz);
-        #endif`,
-      )
-  }
-  mt.customProgramCacheKey = () => 'lobby-haze'
-}
 
 export function LobbyWorld() {
   const { scene } = useGLTF(URL)
@@ -144,10 +113,8 @@ export function LobbyWorld() {
     return out
   }, [scene])
 
-  useFrame(({ clock, camera }) => {
+  useFrame(({ clock }) => {
     for (const f of films) f.uniforms.time.value = clock.elapsedTime
-    haze.sunView.value.copy(atmo.sunDir).transformDirection(camera.matrixWorldInverse)
-    haze.sunTint.value.copy(atmo.sunColor).multiplyScalar(0.55 * atmo.sunGlow)
   })
 
   const low = runtime.lowQuality

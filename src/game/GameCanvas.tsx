@@ -1,15 +1,18 @@
 import { PerformanceMonitor } from '@react-three/drei'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { Physics } from '@react-three/rapier'
 import { ToneMappingMode } from 'postprocessing'
 import { Suspense, useEffect, useState } from 'react'
 import { useGame } from '../shared/gameStore'
 import { AtmosphereDriver } from './atmosphere/AtmosphereDriver'
-import { Bursts, Clouds, Lights, Sky } from './Environment'
+import { Bursts, Lights, Sky } from './Environment'
 import { palette } from './palette'
 import { runtime } from './runtime'
 import { SCENES } from './scenes'
+import { SpiritDirector } from './spirit/SpiritDirector'
+import { updateHaze } from './world/haze'
+import { Mist } from './world/Mist'
 import { WindowCamera } from './WindowCamera'
 
 /**
@@ -22,7 +25,8 @@ function DebugStepper() {
   const advance = useThree((s) => s.advance)
   const scene = useThree((s) => s.scene)
   const camera = useThree((s) => s.camera)
-  useEffect(() => void Object.assign(window, { __scene: scene, __camera: camera }), [scene, camera])
+  const gl = useThree((s) => s.gl)
+  useEffect(() => void Object.assign(window, { __scene: scene, __camera: camera, __gl: gl }), [scene, camera, gl])
   useEffect(() => {
     let t = 0
     Object.assign(window, {
@@ -34,6 +38,12 @@ function DebugStepper() {
       },
     })
   }, [advance])
+  return null
+}
+
+/** Дымка скал и башен теплеет в сторону солнца — обновляем её раз в кадр. */
+function HazeDriver() {
+  useFrame(({ camera }) => updateHaze(camera))
   return null
 }
 
@@ -73,13 +83,17 @@ export function GameCanvas() {
       <WindowCamera />
       <Sky />
       <Lights />
-      <Clouds />
+      {/* Море тумана под островами (вместо облаков-шаров). */}
+      <Mist />
+      <HazeDriver />
       <Suspense fallback={null}>
         <Physics gravity={[0, -24, 0]} paused={phase === 'paused'} timeStep="vary">
           <Scene key={`${sceneId}-${runId}`} />
         </Physics>
       </Suspense>
       <Bursts />
+      {/* Дух Окна — у героя во всех сценах (вид — spirit/, поведение обучения — spiritState). */}
+      <SpiritDirector />
       <EffectComposer multisampling={quality === 'high' ? 4 : 0}>
         <Bloom mipmapBlur luminanceThreshold={0.85} intensity={quality === 'high' ? 0.7 : 0.4} />
         <Vignette offset={0.25} darkness={0.45} />

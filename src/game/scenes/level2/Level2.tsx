@@ -1,14 +1,16 @@
-import { Html, Outlines, RoundedBox } from '@react-three/drei'
+import { Html } from '@react-three/drei'
 import { useFrame, useThree } from '@react-three/fiber'
 import { CuboidCollider, RigidBody, useRapier } from '@react-three/rapier'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ExtrudeGeometry, Shape, Vector3, type Group } from 'three'
+import { Color, ExtrudeGeometry, MeshStandardMaterial, Shape, Vector3, type Group } from 'three'
 import { useGame } from '../../../shared/gameStore'
 import { palette } from '../../palette'
 import { Player } from '../../Player'
 import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
-import { toonGradient } from '../../toon'
+import { stoneBlock, stoneKit, TILE } from '../../world/stoneKit'
+import { Towers } from '../../world/Towers'
+import { LightShafts } from '../../LightShafts'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
 import { courtyardWalls, level2, SECRET_STAR_HEIGHT, SEEN_POINTS, starSamplePoints, WALL_T, type Courtyard } from './levelData'
@@ -21,6 +23,13 @@ import { courtyardWalls, level2, SECRET_STAR_HEIGHT, SEEN_POINTS, starSamplePoin
  */
 
 const SECRET_COLOR = palette.teal
+/** Лучи солнца — в двориках и на островах (золотой час). */
+const SHAFTS = [
+  { at: [2.5, 0, -2.2] as [number, number, number], length: 22, width: 1.1, seed: 1 },
+  { at: [14, 0.6, -1.5] as [number, number, number], length: 22, width: 1.3, seed: 2 },
+  { at: [11.5, 1.2, -16.2] as [number, number, number], length: 22, width: 1.0, seed: 3 },
+  { at: [0, 2, -15] as [number, number, number], length: 22, width: 1.2, seed: 4 },
+]
 /** Сколько секунд звезду должно быть видно, чтобы она засчиталась (защита от случайного мелькания). */
 const SEEN_S = 0.25
 /** Дальше этого от героя звёзды не ищем — чтобы находились именно там, где игрок. */
@@ -53,7 +62,29 @@ export function Level2() {
         </div>
       </Html>
       <Player spawn={level2.spawn} killY={level2.killY} />
+      <Towers position={[7, 0, -8]} />
+      <LightShafts shafts={SHAFTS} />
     </>
+  )
+}
+
+/** Стена из кладки с каменным верхом (вид). Размер — ровно как у коллайдера. */
+function StoneWall({ size, pos, seed }: { size: [number, number, number]; pos: [number, number, number]; seed: number }) {
+  const kit = stoneKit()
+  const geo = useMemo(() => {
+    const capH = 0.18
+    return {
+      capH,
+      wall: stoneBlock(size[0], size[1] - capH, size[2], TILE.wall, seed, 0.05),
+      // верх не шире стены: видимость тайной звезды считается по коллайдерам — вид не должен закрывать больше
+      cap: stoneBlock(size[0], capH, size[2], TILE.rock, seed + 1, 0.05),
+    }
+  }, [size, seed])
+  return (
+    <group position={pos}>
+      <mesh geometry={geo.wall} material={kit.wall} position={[0, -geo.capH / 2, 0]} castShadow receiveShadow />
+      <mesh geometry={geo.cap} material={kit.rock} position={[0, size[1] / 2 - geo.capH / 2, 0]} castShadow receiveShadow />
+    </group>
   )
 }
 
@@ -64,15 +95,29 @@ function CourtyardWalls({ c }: { c: Courtyard }) {
       {courtyardWalls(c).map((w, i) => (
         <group key={i}>
           <CuboidCollider args={[w.size[0] / 2, w.size[1] / 2, w.size[2] / 2]} position={w.pos} />
-          <RoundedBox args={w.size} radius={0.1} position={w.pos} castShadow receiveShadow>
-            <meshToonMaterial color={palette.grassDark} gradientMap={toonGradient} />
-            <Outlines thickness={0.035} color={palette.ink} />
-          </RoundedBox>
+          <StoneWall size={w.size} pos={w.pos} seed={Math.round(c.x * 3 + c.z) + i} />
         </group>
       ))}
     </RigidBody>
   )
 }
+
+/** Тайная звезда и ворота — бирюзовое свечение. */
+const secretMaterial = new MeshStandardMaterial({
+  color: new Color('#57ffe9'),
+  emissive: new Color(palette.teal),
+  emissiveIntensity: 2,
+  metalness: 0.3,
+  roughness: 0.3,
+})
+const gateMaterial = new MeshStandardMaterial({
+  color: new Color('#0c5a52'),
+  emissive: new Color(palette.teal),
+  emissiveIntensity: 1.4,
+  transparent: true,
+  opacity: 0.55,
+  depthWrite: false,
+})
 
 function starGeometry() {
   const s = new Shape()
@@ -161,10 +206,7 @@ function SecretStar({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
       <group ref={group}>
-        <mesh geometry={geo}>
-          <meshToonMaterial color={SECRET_COLOR} emissive={SECRET_COLOR} emissiveIntensity={1.1} gradientMap={toonGradient} />
-          <Outlines thickness={0.03} color={palette.ink} />
-        </mesh>
+        <mesh geometry={geo} material={secretMaterial} />
       </group>
     </group>
   )
@@ -196,20 +238,16 @@ function GateWithFence() {
         return (
           <group key={i}>
             <CuboidCollider args={[WALL_T / 2, H / 2, len / 2]} position={[0, H / 2, cz]} />
-            <RoundedBox args={[WALL_T, H, len]} radius={0.1} position={[0, H / 2, cz]} castShadow>
-              <meshToonMaterial color={palette.stone} gradientMap={toonGradient} />
-              <Outlines thickness={0.035} color={palette.ink} />
-            </RoundedBox>
+            <StoneWall size={[WALL_T, H, len]} pos={[0, H / 2, cz]} seed={i + 40} />
           </group>
         )
       })}
       {!open && (
         <group>
           <CuboidCollider args={[WALL_T / 2, H / 2, width / 2]} position={[0, H / 2, z]} />
-          <RoundedBox args={[WALL_T * 1.4, H, width]} radius={0.1} position={[0, H / 2, z]} castShadow>
-            <meshToonMaterial color={SECRET_COLOR} emissive={SECRET_COLOR} emissiveIntensity={0.3} gradientMap={toonGradient} />
-            <Outlines thickness={0.035} color={palette.ink} />
-          </RoundedBox>
+          <mesh position={[0, H / 2, z]} material={gateMaterial}>
+            <boxGeometry args={[WALL_T * 0.6, H, width]} />
+          </mesh>
           <Html center position={[0.6, H + 0.6, z]} distanceFactor={30} zIndexRange={[10, 0]}>
             <div className="level-sign level-sign--small">
               Ворота откроются: тайные звёзды {found}/{total}

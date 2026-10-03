@@ -16,13 +16,13 @@ import { Color, NormalBlending, ShaderMaterial, Vector2, Vector3 } from 'three'
 
 export const SPIRIT_COLORS = {
   /** Глубина тела у краёв. */
-  deep: new Color('#1542cf'),
+  deep: new Color('#1663e6'),
   /** Тело в центре (свет изнутри). */
-  mid: new Color('#3a8bff'),
+  mid: new Color('#3fbcff'),
   /** Внутреннее свечение вокруг центра головы. */
-  core: new Color('#d6f3ff').multiplyScalar(1.7),
-  /** Ободок по краю силуэта — больше 1. */
-  rim: new Color('#e3f6ff').multiplyScalar(2.3),
+  core: new Color('#9ff0ff').multiplyScalar(1.1),
+  /** Ободок по краю силуэта — больше 1: ледяной электрический голубой, как на референсе. */
+  rim: new Color('#86f0ff').multiplyScalar(1.8),
   /** Глаза — самое яркое. */
   eye: new Color('#f4fdff').multiplyScalar(3.2),
   /** Контур и ротик — «чернила» мира, чуть синее. */
@@ -141,14 +141,11 @@ const BODY_FRAG = /* glsl */ `
     // Пиксель в единицах духа — контур и сглаживание не тоньше пикселя на любом расстоянии.
     float px = max(fwidth(vLocal.x), 1e-4);
     if (!hit) {
-      // Снаружи: тонкий тёмный контур, за ним — слабый светлый ореол (дух светится, а не нарисован).
-      float w = max(0.022, px * 1.7);
+      // Снаружи: голубой ореол без контура — дух из света, а не нарисованный (как на референсе).
       float fade = tailFade(pMin);
-      float ink = (1.0 - smoothstep(w - px, w + px, dMin)) * fade;
-      float aura = exp(-max(dMin - w, 0.0) / 0.07) * 0.32 * fade * (1.0 + 0.8 * uVoice);
-      float a = max(ink * 0.85, aura);
-      if (a < 0.01) discard;
-      gl_FragColor = vec4(mix(uCore * 0.75, uInk, ink) * uGlow, a * uOpacity);
+      float aura = exp(-max(dMin, 0.0) / 0.09) * 0.5 * fade * (1.0 + 0.8 * uVoice);
+      if (aura < 0.01) discard;
+      gl_FragColor = vec4(uRim * 0.55 * uGlow, aura * uOpacity);
       return;
     }
 
@@ -156,7 +153,8 @@ const BODY_FRAG = /* glsl */ `
     float ndv = clamp(abs(dot(n, -rd)), 0.0, 1.0);
     float lam = dot(n, uLight) * 0.5 + 0.5;
     // Тело: к центру светлее (свет изнутри), к краю глубже; мягкий объём от света сверху слева.
-    vec3 col = mix(uDeep, uMid, pow(ndv, 1.2)) * (0.78 + 0.4 * lam);
+    // Яркость тела держим около 1: тональная кривая ACES уводит яркий синий в розовый.
+    vec3 col = mix(uDeep, uMid, pow(ndv, 1.2)) * (0.75 + 0.3 * lam);
     // Свет внутри: ядро в голове, видное сквозь тело (по тому, как близко луч проходит мимо центра головы);
     // больше 1 — Bloom даёт ореол. Когда Окно говорит — разгорается.
     vec3 hc = uHead + vec3(0.0, 0.03, 0.0) - uCam;
@@ -173,7 +171,8 @@ const BODY_FRAG = /* glsl */ `
     // Блик — чёткий, «мультяшный», как у мира.
     float spec = smoothstep(0.9, 0.93, dot(reflect(rd, n), uLight));
     col = mix(col, vec3(2.0), spec * 0.45);
-    float alpha = mix(0.8, 1.0, max(rim, glow * 0.5)) * tailFade(p);
+    // Почти плотное тело (сквозь сильно прозрачное просвечивают тёплые лучи — и дух розовеет).
+    float alpha = mix(0.8, 1.0, max(rim, glow * 0.6)) * tailFade(p);
 
     // Глаза: тонкое тёмное кольцо и светящаяся сердцевина.
     float de = min(eye(p, uEyeL), eye(p, uEyeR));
@@ -181,7 +180,7 @@ const BODY_FRAG = /* glsl */ `
     float inner = 1.0 - smoothstep(-aa, aa, de);
     float ring = (1.0 - smoothstep(0.32 - aa, 0.32 + aa, de)) - inner;
     vec3 eyeCol = uEye * (1.0 + 0.5 * uVoice) * (0.85 + 0.3 * smoothstep(0.0, -0.7, de));
-    col = mix(col, uInk, ring * 0.9);
+    col = mix(col, uDeep * 0.6, ring * 0.6);
     col = mix(col, eyeCol, inner);
     // Ротик — только когда Окно говорит: маленький тёмный овал, открывается с громкостью.
     if (uMouth > 0.02) {

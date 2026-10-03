@@ -1,15 +1,17 @@
-import { Html, Outlines } from '@react-three/drei'
+import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody, type RapierCollider } from '@react-three/rapier'
 import { useEffect, useMemo, useRef } from 'react'
-import { MathUtils, Vector3, type Mesh, type MeshToonMaterial } from 'three'
+import { BoxGeometry, Color, MathUtils, Vector3, type Mesh, type MeshStandardMaterial } from 'three'
 import { useGame } from '../../../shared/gameStore'
 import { palette } from '../../palette'
 import { Player } from '../../Player'
 import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
 import { PRIORITY, say } from '../../voice'
-import { toonGradient } from '../../toon'
+import { stoneKit, TILE, worldUV } from '../../world/stoneKit'
+import { Towers } from '../../world/Towers'
+import { LightShafts } from '../../LightShafts'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
 import type { Platform } from '../level1/levelData'
@@ -52,6 +54,13 @@ const STARS: [number, number, number][] = [
   [6.5, 1.2, -12.5],
   [-2.5, 1, -10.5],
 ]
+const SHAFTS = [
+  { at: [0, 0, 0] as [number, number, number], length: 24, width: 1.1, seed: 1 },
+  { at: [13, 0, -12.5] as [number, number, number], length: 24, width: 1.1, seed: 2 },
+  { at: [6.5, 0, 0] as [number, number, number], length: 20, width: 0.8, seed: 3 },
+]
+const GLOW = new Color('#ffb84d')
+
 /** Мост твёрдый, если поворот камеры отличается от нужного меньше чем на столько. */
 const SNAP = MathUtils.degToRad(12)
 /** Дальше этого угла доски разлетаются по максимуму. */
@@ -80,6 +89,8 @@ export function Level3() {
         </div>
       </Html>
       <Player spawn={[0, 1.2, 0]} killY={-10} />
+      <Towers position={[6, 0, -6]} rotation={0.6} />
+      <LightShafts shafts={SHAFTS} />
     </>
   )
 }
@@ -105,8 +116,19 @@ function GhostBridge({ b }: { b: Bridge }) {
       side: (((i * 53) % 5) - 2) / 2,
       spin: (((i * 29) % 9) - 4) / 4,
     }))
-    return { len, count, angle, center, scatter }
+    const plank = worldUV(new BoxGeometry(b.width, 0.2, (len / count) * 0.9), TILE.planks)
+    // у каждой доски свой материал: прозрачность и свечение меняются по отдельности
+    const mats = scatter.map(() => {
+      const m = stoneKit().planks.clone()
+      m.transparent = true
+      m.opacity = 0.5
+      m.emissive = GLOW.clone()
+      m.emissiveIntensity = 0
+      return m
+    })
+    return { len, count, angle, center, scatter, plank, mats }
   }, [b])
+  const flash = useRef(0)
 
   useFrame((_, dt) => {
     const diff = angleDiff(runtime.cameraYaw, b.targetYaw)
@@ -120,6 +142,7 @@ function GhostBridge({ b }: { b: Bridge }) {
     if (solid !== wasSolid.current) {
       collider.current?.setEnabled(solid)
       if (solid && !firstFrame.current) {
+        flash.current = 1
         burst(geo.center.clone().setY(b.top + 0.5), palette.star, 26, 5)
         sfx.confirm()
         // «Мост собран. Нужен был другой угол» — за забег один раз, на первом собранном мосту.
@@ -129,6 +152,7 @@ function GhostBridge({ b }: { b: Bridge }) {
     }
 
     firstFrame.current = false
+    flash.current = Math.max(0, flash.current - dt * 1.5)
     const spread = solid ? 0 : m
     planks.current.forEach((p, i) => {
       if (!p) return
@@ -136,8 +160,11 @@ function GhostBridge({ b }: { b: Bridge }) {
       const z = -geo.len / 2 + (i + 0.5) * (geo.len / geo.count)
       p.position.set(s.side * 1.4 * spread, -0.1 + s.y * 1.8 * spread, z)
       p.rotation.set(s.spin * 0.8 * spread, s.spin * 1.2 * spread, 0)
-      const mat = p.material as MeshToonMaterial
+      const mat = p.material as MeshStandardMaterial
       mat.opacity = MathUtils.lerp(mat.opacity, solid ? 1 : 0.35 + 0.35 * (1 - m), 1 - Math.exp(-10 * dt))
+      mat.transparent = mat.opacity < 0.99
+      // Доски теплеют, когда угол близко, и вспыхивают при сборке — зрелище сборки моста.
+      mat.emissiveIntensity = (solid ? 0 : (1 - m) * 0.9) + flash.current * 2.5
     })
 
     // Подсказка у начала моста: в какую сторону вести кулак.
@@ -159,11 +186,7 @@ function GhostBridge({ b }: { b: Bridge }) {
       <RigidBody type="fixed" colliders={false} position={geo.center} rotation={[0, geo.angle, 0]}>
         <CuboidCollider ref={collider} args={[b.width / 2, 0.15, geo.len / 2]} position={[0, -0.15, 0]} friction={0} />
         {geo.scatter.map((_, i) => (
-          <mesh key={i} ref={(m) => void (planks.current[i] = m)} castShadow>
-            <boxGeometry args={[b.width, 0.2, (geo.len / geo.count) * 0.9]} />
-            <meshToonMaterial color={palette.wood} gradientMap={toonGradient} transparent opacity={0.5} />
-            <Outlines thickness={0.03} color={palette.ink} />
-          </mesh>
+          <mesh key={i} ref={(m) => void (planks.current[i] = m)} geometry={geo.plank} material={geo.mats[i]} castShadow />
         ))}
       </RigidBody>
       <Html center position={[start.x, b.top + 1.9, start.z]} distanceFactor={26} zIndexRange={[10, 0]}>

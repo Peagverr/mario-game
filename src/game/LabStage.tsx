@@ -4,7 +4,8 @@ import { Physics } from '@react-three/rapier'
 import { ToneMappingMode } from 'postprocessing'
 import { Suspense, type ReactNode } from 'react'
 import { AtmosphereDriver } from './atmosphere/AtmosphereDriver'
-import { Bursts, Clouds, Lights, Sky } from './Environment'
+import { Bursts, Lights, Sky } from './Environment'
+import { Mist } from './world/Mist'
 import { palette } from './palette'
 import { Lobby } from './scenes/lobby/Lobby'
 import { WindowCamera } from './WindowCamera'
@@ -48,7 +49,7 @@ export function LabStage({ low, children }: { low: boolean; children: ReactNode 
       <WindowCamera />
       <Sky />
       <Lights />
-      <Clouds />
+      <Mist />
       <Suspense fallback={null}>
         <Physics gravity={[0, -24, 0]} timeStep="vary">
           <Lobby />

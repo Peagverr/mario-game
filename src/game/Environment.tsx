@@ -1,9 +1,8 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
-import { BackSide, Color, InstancedMesh, MeshToonMaterial, Object3D, Vector3, type DirectionalLight, type Group, type HemisphereLight, type ShaderMaterial } from 'three'
+import { BackSide, Color, InstancedMesh, Object3D, Vector3, type DirectionalLight, type Group, type HemisphereLight, type ShaderMaterial } from 'three'
 import { atmo } from './atmosphere/AtmosphereDriver'
 import { runtime } from './runtime'
-import { toonGradient } from './toon'
 
 /** Луна ночью — сверху слева, чтобы не спорить с местом восхода (справа позади островов). */
 const MOON_DIR = new Vector3(-0.55, 0.42, -0.72).normalize()
@@ -143,47 +142,6 @@ export function Lights() {
   )
 }
 
-/** Облака из шаров — плывут внизу и по сторонам, дают ощущение высоты. */
-export function Clouds() {
-  const clouds = useMemo(() => {
-    const rnd = mulberry32(7)
-    return Array.from({ length: 16 }, () => ({
-      x: -30 + rnd() * 60,
-      y: -9 + rnd() * 16 * (rnd() > 0.6 ? 1 : -0.4),
-      z: -40 + rnd() * 50,
-      s: 1 + rnd() * 1.6,
-      speed: 0.3 + rnd() * 0.5,
-      puffs: Array.from({ length: 4 }, (_, i) => [i * 0.9 - 1.3, rnd() * 0.4, rnd() * 0.6 - 0.3, 0.7 + rnd() * 0.5] as const),
-    }))
-  }, [])
-  const refs = useRef<(Group | null)[]>([])
-  // Один материал на все облака: ночью они тёмно-синие, на рассвете — розовые, утром — белые.
-  const mat = useMemo(() => new MeshToonMaterial({ gradientMap: toonGradient }), [])
-  useFrame((_, dt) => {
-    mat.color.copy(atmo.cloud)
-    clouds.forEach((c, i) => {
-      const g = refs.current[i]
-      if (!g) return
-      c.x += c.speed * dt
-      if (c.x > 35) c.x = -35
-      g.position.set(c.x, c.y, c.z)
-    })
-  })
-  return (
-    <>
-      {clouds.map((c, i) => (
-        <group key={i} ref={(g) => void (refs.current[i] = g)} scale={c.s}>
-          {c.puffs.map(([x, y, z, r], j) => (
-            <mesh key={j} position={[x, y, z]} material={mat}>
-              <sphereGeometry args={[r, 12, 10]} />
-            </mesh>
-          ))}
-        </group>
-      ))}
-    </>
-  )
-}
-
 /** Частицы: звёздочки при сборе, пыль при приземлении. Один InstancedMesh на все частицы. */
 const MAX_PARTICLES = 200
 export function Bursts() {
@@ -242,15 +200,4 @@ export function Bursts() {
       <meshBasicMaterial toneMapped={false} />
     </instancedMesh>
   )
-}
-
-/** Детерминированный генератор случайных чисел — облака всегда на одних местах. */
-function mulberry32(seed: number) {
-  return () => {
-    seed |= 0
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
 }

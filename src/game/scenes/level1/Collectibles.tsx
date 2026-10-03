@@ -1,13 +1,12 @@
-import { Outlines } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody } from '@react-three/rapier'
 import { useMemo, useRef, useState } from 'react'
-import { ExtrudeGeometry, Shape, Vector3, type Group } from 'three'
+import { AdditiveBlending, Color, DoubleSide, ExtrudeGeometry, MeshBasicMaterial, MeshStandardMaterial, Shape, Vector3, type Group } from 'three'
 import { useGame } from '../../../shared/gameStore'
 import { palette } from '../../palette'
 import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
-import { toonGradient } from '../../toon'
+import { stoneKit } from '../../world/stoneKit'
 
 function starGeometry() {
   const s = new Shape()
@@ -25,6 +24,24 @@ function starGeometry() {
   g.center()
   return g
 }
+
+/** Звезда — светящееся золото (общий материал на все звёзды). */
+export const starMaterial = new MeshStandardMaterial({
+  color: new Color('#ffcc55'),
+  emissive: new Color('#ffb02e'),
+  emissiveIntensity: 1.7,
+  metalness: 0.5,
+  roughness: 0.3,
+})
+const beamMaterial = new MeshBasicMaterial({
+  color: new Color('#ffcf70').multiplyScalar(0.5),
+  transparent: true,
+  opacity: 0.35,
+  blending: AdditiveBlending,
+  depthWrite: false,
+  side: DoubleSide,
+  toneMapped: false,
+})
 
 function Star({ position }: { position: [number, number, number] }) {
   const [taken, setTaken] = useState(false)
@@ -54,10 +71,7 @@ function Star({ position }: { position: [number, number, number] }) {
         }}
       />
       <group ref={ref}>
-        <mesh geometry={geo} castShadow>
-          <meshToonMaterial color={palette.star} emissive={palette.star} emissiveIntensity={0.9} gradientMap={toonGradient} />
-          <Outlines thickness={0.03} color={palette.ink} />
-        </mesh>
+        <mesh geometry={geo} material={starMaterial} />
       </group>
     </RigidBody>
   )
@@ -94,22 +108,22 @@ export function Goal({ position }: { position: [number, number, number] }) {
           g.finishRun()
         }}
       />
-      <mesh position={[0, 1.6, 0]} castShadow>
-        <cylinderGeometry args={[0.07, 0.07, 3.2, 8]} />
-        <meshToonMaterial color={palette.heroCream} gradientMap={toonGradient} />
-        <Outlines thickness={0.03} color={palette.ink} />
+      <mesh position={[0, 1.6, 0]} material={stoneKit().planks} castShadow>
+        <cylinderGeometry args={[0.08, 0.1, 3.2, 8]} />
       </mesh>
-      <mesh position={[0, 3.3, 0]}>
-        <sphereGeometry args={[0.16, 12, 12]} />
-        <meshToonMaterial color={palette.star} emissive={palette.star} emissiveIntensity={0.8} gradientMap={toonGradient} />
+      <mesh position={[0, 3.3, 0]} material={starMaterial}>
+        <sphereGeometry args={[0.18, 16, 12]} />
       </mesh>
       <group ref={flag} position={[0, 2.8, 0]}>
         <mesh position={[0.55, 0, 0]} castShadow>
-          <boxGeometry args={[1.1, 0.7, 0.05]} />
-          <meshToonMaterial color={palette.flag} gradientMap={toonGradient} />
-          <Outlines thickness={0.03} color={palette.ink} />
+          <boxGeometry args={[1.1, 0.7, 0.04]} />
+          <meshStandardMaterial color="#b3302a" roughness={0.85} />
         </mesh>
       </group>
+      {/* Столб света над финишем — видно издалека, куда идти. */}
+      <mesh position={[0, 6, 0]} material={beamMaterial}>
+        <cylinderGeometry args={[0.9, 0.9, 12, 24, 1, true]} />
+      </mesh>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.9, 1.15, 32]} />
         <meshBasicMaterial color={palette.star} transparent opacity={0.8} />

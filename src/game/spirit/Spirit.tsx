@@ -30,7 +30,7 @@ import { spirit } from './spiritState'
  */
 
 /** Единиц мира в единице духа: дух ~1.4 единицы ростом — с героя, голова крупная. */
-const SCALE = 1.0
+const SCALE = 1.15
 const APPEAR_S = 0.95
 const VANISH_S = 0.7
 const CELEBRATE_S = 1.15

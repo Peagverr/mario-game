@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import { AdditiveBlending, Color, DoubleSide, Quaternion, ShaderMaterial, Vector3, type Mesh } from 'three'
 import { atmo } from './atmosphere/AtmosphereDriver'
+import { runtime } from './runtime'
 
 /**
  * Лучи солнца сквозь руины — как на референсе. Не настоящий объёмный свет (дорого на встроенной видеокарте),
@@ -77,8 +78,8 @@ export function LightShafts({ shafts, tilt = 0.55 }: { shafts: Shaft[]; tilt?: n
     for (const m of mats) {
       m.uniforms.time.value = clock.elapsedTime
       // Лучи светлее солнца у горизонта: красный закатный цвет в дымке читается как грязь.
-      m.uniforms.color.value.copy(atmo.sunColor).lerp(WARM, 0.55)
-      m.uniforms.strength.value = 0.55 + atmo.sunGlow * 0.7
+      m.uniforms.color.value.copy(atmo.sunColor).lerp(WARM, 0.7).multiplyScalar(0.8)
+      m.uniforms.strength.value = (0.75 + atmo.sunGlow * 0.25) * (runtime.lowQuality ? 0.8 : 1)
     }
   })
 
