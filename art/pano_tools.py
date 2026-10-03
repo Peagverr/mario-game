@@ -15,8 +15,8 @@ def srgb(h):
 TIMES = {
     # сумерки: глубокий сине-бирюзовый, не фиолетовый; тёмная сторона подсвечена луной; тёплые огни в окнах
     'dusk':   dict(el=-4.0, top='#0c2038', hor='#5f8db0', low='#355a7c', deep='#1a3048', sun='#ffae62', sunE=5.0, glow=1.0, sky=4.0, fog='#7fa6c8', cloud='#d4e4f4', moon=2.6, win=9.0, exp=0.35, cloudE=0.0012),
-    # золотой час: бирюзовый верх, тёплый янтарный горизонт (без лилового перехода)
-    'golden': dict(el=2.0,  top='#1f4a74', hor='#ffb46e', low='#5a6a80', deep='#2a3448', sun='#ffb066', sunE=6.5, glow=1.5, sky=2.6, fog='#b8a08a', cloud='#f6dcc4', moon=1.6, win=4.0, exp=0.45, cloudE=0.002),
+    # золотой час: бирюзовый верх, тёплое зарево только у солнца; дымка и облака холодные (иначе фон — бежевая пустыня)
+    'golden': dict(el=2.0,  top='#1f4a74', hor='#ffb46e', low='#6a7c9a', deep='#2a3a52', sun='#ffb066', sunE=3.8, glow=1.5, sky=3.6, fog='#8fa6c6', cloud='#e2e6f4', moon=2.8, win=4.0, exp=0.45, cloudE=0.002),
     'dawn':   dict(el=17.0, top='#4f92dc', hor='#ffdcb0', low='#a9c4e6', deep='#6d8cbf', sun='#fff0d4', sunE=6.0, glow=0.45, sky=1.6, fog='#b8cbe8', cloud='#ffffff', moon=0.0, win=0.0, exp=0.0),
 }
 AZ = math.radians(38)  # солнце справа позади (как SUN_AZIMUTH в atmosphere.ts)

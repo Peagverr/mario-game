@@ -1,6 +1,6 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
-import { AdditiveBlending, Color, DoubleSide, Quaternion, ShaderMaterial, Vector3, type Mesh } from 'three'
+import { AdditiveBlending, Color, DoubleSide, MathUtils, Quaternion, ShaderMaterial, Vector3, type Mesh } from 'three'
 import { atmo } from './atmosphere/AtmosphereDriver'
 import { runtime } from './runtime'
 
@@ -37,6 +37,7 @@ void main() {
 }`
 
 const UP = new Vector3(0, 1, 0)
+const fwd = new Vector3()
 const WARM = new Color('#ffd9a0')
 
 type Shaft = { at: [number, number, number]; length: number; width: number; seed: number }
@@ -64,7 +65,12 @@ export function LightShafts({ shafts, tilt = 0.55 }: { shafts: Shaft[]; tilt?: n
   const dir = useMemo(() => new Vector3(), [])
   const q = useMemo(() => new Quaternion(), [])
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
+    // Лучи видны, когда смотришь в сторону солнца (как в жизни). Повернул мир боком — гаснут:
+    // сбоку конус читается плоской полупрозрачной пластиной.
+    camera.getWorldDirection(fwd)
+    const facing = (fwd.x * atmo.sunDir.x + fwd.z * atmo.sunDir.z) / (Math.hypot(fwd.x, fwd.z) * Math.hypot(atmo.sunDir.x, atmo.sunDir.z) || 1)
+    const face = MathUtils.smoothstep(facing, 0.15, 0.7)
     // Ось луча — к солнцу (по сторонам света), но поднята: так лучи падают на остров, а не стелются.
     const a = (tilt * Math.PI) / 2
     dir.set(atmo.sunDir.x, 0, atmo.sunDir.z).normalize().multiplyScalar(Math.cos(a)).setY(Math.sin(a)).normalize()
@@ -75,11 +81,12 @@ export function LightShafts({ shafts, tilt = 0.55 }: { shafts: Shaft[]; tilt?: n
       m.quaternion.copy(q)
       m.position.set(...s.at).addScaledVector(dir, s.length / 2)
     })
+    for (const mesh of meshes.current) if (mesh) mesh.visible = face > 0.01
     for (const m of mats) {
       m.uniforms.time.value = clock.elapsedTime
       // Лучи светлее солнца у горизонта: красный закатный цвет в дымке читается как грязь.
       m.uniforms.color.value.copy(atmo.sunColor).lerp(WARM, 0.7).multiplyScalar(0.8)
-      m.uniforms.strength.value = (0.5 + atmo.sunGlow * 0.3) * (runtime.lowQuality ? 0.8 : 1)
+      m.uniforms.strength.value = (0.5 + atmo.sunGlow * 0.3) * (runtime.lowQuality ? 0.8 : 1) * face
     }
   })
 

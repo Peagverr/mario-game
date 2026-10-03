@@ -68,7 +68,7 @@ let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial; cliff: MeshSt
  */
 export function farKit() {
   const k = stoneKit()
-  const mid = { far: 0.6, low: 0.55, rim: 1 }
+  const mid = { far: 0.62, low: 0.6, rim: 0.4 }
   return (far ??= { rock: hazy(k.rock.clone(), mid), wall: hazy(k.wall.clone(), mid), cliff: hazy(k.cliff.clone(), mid) })
 }
 /** Материалы мира (создаются один раз). */
