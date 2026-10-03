@@ -61,6 +61,12 @@ function makeKit() {
     moss: stone('moss', [0.45, 0.52, 0.36]),
   }
 }
+let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial } | null = null
+/** Те же камень и кладка, но с дальней дымкой — для среднего плана (Surroundings). */
+export function farKit() {
+  const k = stoneKit()
+  return (far ??= { rock: hazy(k.rock.clone()), wall: hazy(k.wall.clone()) })
+}
 /** Материалы мира (создаются один раз). */
 export function stoneKit() {
   return (kit ??= makeKit())

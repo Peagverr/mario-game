@@ -57,7 +57,8 @@ export function GameCanvas() {
   const sceneId = useGame((s) => s.sceneId)
   const Scene = SCENES[sceneId] ?? SCENES.lobby!
   const [quality, setQuality] = useState<'high' | 'low'>('high')
-  const [dpr, setDpr] = useState(1.25)
+  // Не выше 1: на экране с масштабом 125% иначе рисуется в 1.56 раза больше пикселей — а рядом работает распознавание рук.
+  const [dpr, setDpr] = useState(1)
 
   return (
     <Canvas
@@ -71,11 +72,11 @@ export function GameCanvas() {
       {STEP_MODE && <DebugStepper />}
       <PerformanceMonitor
         onDecline={() => {
-          setDpr(1)
+          setDpr(0.85)
           setQuality('low')
           runtime.lowQuality = true
         }}
-        onIncline={() => setDpr(1.25)}
+        onIncline={() => setDpr(1)}
       />
       <fog attach="fog" args={[palette.skyBottom, 60, 170]} />
       {/* Время суток: ночь в лобби → рассвет на итогах; красит небо, свет, туман и облака. */}
@@ -95,7 +96,7 @@ export function GameCanvas() {
       {/* Дух Окна — у героя во всех сценах (вид — spirit/, поведение обучения — spiritState). */}
       <SpiritDirector />
       <EffectComposer multisampling={quality === 'high' ? 4 : 0}>
-        <Bloom mipmapBlur luminanceThreshold={0.85} intensity={quality === 'high' ? 0.7 : 0.4} />
+        <Bloom mipmapBlur resolutionScale={0.5} luminanceThreshold={0.85} intensity={quality === 'high' ? 0.7 : 0.4} />
         <Vignette offset={0.25} darkness={0.45} />
         <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       </EffectComposer>

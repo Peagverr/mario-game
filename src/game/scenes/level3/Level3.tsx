@@ -11,6 +11,7 @@ import { sfx } from '../../sfx'
 import { PRIORITY, say } from '../../voice'
 import { stoneKit, TILE, worldUV } from '../../world/stoneKit'
 import { Towers } from '../../world/Towers'
+import { Surroundings } from '../../world/Surroundings'
 import { LightShafts } from '../../LightShafts'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
@@ -91,6 +92,7 @@ export function Level3() {
       <Player spawn={[0, 1.2, 0]} killY={-10} />
       <Towers position={[6, 0, -6]} rotation={0.6} />
       <LightShafts shafts={SHAFTS} />
+      <Surroundings center={[6.5, 0, -6]} minR={48} maxR={100} seed={9} />
     </>
   )
 }

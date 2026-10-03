@@ -15,6 +15,8 @@ import { runtime } from '../../runtime'
 import { LEVELS } from '../index'
 import { LightShafts } from '../../LightShafts'
 import { hazy } from '../../world/haze'
+import { Surroundings } from '../../world/Surroundings'
+import { GlowPools } from '../../world/GlowPools'
 
 /**
  * Вид лобби из Blender (art/lobby.blend → public/models/lobby.glb): каменный остров с мхом и травой,
@@ -64,6 +66,13 @@ void main() {
   float glow = (0.18 + 0.35 * swirl * (1.0 - r * 0.6) + rim * 0.7) * (1.0 - smoothstep(0.92, 1.02, r));
   gl_FragColor = vec4(color * glow * 2.6, glow);
 }`
+
+/** Свет фонарей и порталов на камне (вместо точечных источников). */
+/** Список считается при первом показе: LEVELS при загрузке модуля ещё не готов (циклический импорт). */
+const pools = () => [
+  ...LANTERNS.map((p) => ({ at: [p[0], 0, p[2]] as [number, number, number], color: '#ffa04a', radius: 2.6, strength: 0.55, halo: 0.9, haloAt: p })),
+  ...PORTALS.map(([x, z], i) => ({ at: [x, 0, z + 0.9] as [number, number, number], color: LEVELS[i]?.color ?? '#b9bfd3', radius: 2.4, strength: 0.4 })),
+]
 
 export function LobbyWorld() {
   const { scene } = useGLTF(URL)
@@ -118,16 +127,15 @@ export function LobbyWorld() {
   })
 
   const low = runtime.lowQuality
+  const poolList = useMemo(pools, [])
   return (
     <>
       <primitive object={scene} />
-      {!low &&
-        LANTERNS.map((p, i) => <pointLight key={i} position={p} color="#ffa35a" intensity={7} distance={7} decay={1.6} />)}
-      {!low &&
-        PORTALS.map(([x, z], i) => (
-          <pointLight key={`p${i}`} position={[x, 1.6, z + 0.7]} color={LEVELS[i]?.color ?? '#b9bfd3'} intensity={6} distance={6} decay={1.6} />
-        ))}
+      {/* Свет фонарей и порталов — пятна на камне и ореолы (дешевле точечных источников). */}
+      <GlowPools pools={poolList} />
       <LightShafts shafts={SHAFTS} />
+      {/* Средний план со всех сторон: островки с руинами. */}
+      <Surroundings center={[0, 0, 0]} count={18} minR={42} maxR={95} seed={3} />
       {/* Пылинки и светлячки над островом. */}
       <Sparkles count={low ? 25 : 70} scale={[22, 5, 16]} position={[0, 2.2, 0]} size={2.2} speed={0.25} opacity={0.7} color="#ffd59a" />
     </>

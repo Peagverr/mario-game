@@ -1,85 +1,50 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
-import { BackSide, Color, InstancedMesh, Object3D, Vector3, type DirectionalLight, type Group, type HemisphereLight, type ShaderMaterial } from 'three'
+import { BackSide, Color, InstancedMesh, Object3D, Vector3, type DirectionalLight, type Group, type HemisphereLight } from 'three'
 import { atmo } from './atmosphere/AtmosphereDriver'
 import { runtime } from './runtime'
+import { PANO_GLSL, panoUniforms, updatePano } from './world/skyPano'
 
-/** Луна ночью — сверху слева, чтобы не спорить с местом восхода (справа позади островов). */
-const MOON_DIR = new Vector3(-0.55, 0.42, -0.72).normalize()
-
-const SKY_VERT = `varying vec3 vPos; void main(){ vPos = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`
+const SKY_VERT = `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`
 const SKY_FRAG = `
-uniform vec3 top; uniform vec3 horizon; uniform vec3 bottom;
-uniform vec3 sunDir; uniform vec3 sunColor; uniform float sunGlow;
-uniform vec3 moonDir; uniform float stars; uniform float time;
+${PANO_GLSL}
+uniform float stars; uniform float time; uniform float gain;
 varying vec3 vPos;
 
 float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 
 void main() {
   vec3 d = normalize(vPos);
-  float y = d.y;
-  vec3 c = y > 0.0 ? mix(horizon, top, smoothstep(0.0, 0.55, y)) : mix(horizon, bottom, smoothstep(0.0, -0.45, y));
-
-  // Солнце: тёплое свечение у горизонта (ещё до восхода), корона и диск.
-  float sd = max(dot(d, sunDir), 0.0);
-  float band = exp(-abs(y) * 6.0);
-  c += sunColor * sunGlow * (pow(sd, 5.0) * 0.35 * (0.4 + band) + pow(sd, 48.0) * 0.8);
-  c += sunColor * sunGlow * smoothstep(0.99935, 0.99965, sd) * 5.0;
-
-  // Звёзды: по точке на ячейку неба, мерцают; к горизонту и к рассвету гаснут.
+  vec3 c = panoSample(d, 0.0) * gain;
+  // Звёзды поверх панорамы: по точке на ячейку неба, мерцают; к горизонту и к рассвету гаснут.
   if (stars > 0.001) {
     vec3 p = d * 180.0;
-    vec3 id = floor(p);
-    float h = hash(id);
-    float s = step(0.993, h) * smoothstep(0.45, 0.0, length(fract(p) - 0.5));
+    float h = hash(floor(p));
+    float s = step(0.993, h) * (1.0 - smoothstep(0.0, 0.45, length(fract(p) - 0.5)));
     float tw = 0.65 + 0.35 * sin(time * (1.5 + h * 4.0) + h * 40.0);
-    c += vec3(0.85, 0.9, 1.0) * s * tw * stars * smoothstep(-0.02, 0.25, y) * 2.2;
+    c += vec3(0.85, 0.9, 1.0) * s * tw * stars * smoothstep(0.1, 0.35, d.y) * 1.6;
   }
-
-  // Луна: маленький холодный диск с ореолом, только ночью.
-  float md = max(dot(d, moonDir), 0.0);
-  c += vec3(0.75, 0.82, 1.0) * stars * (smoothstep(0.99955, 0.99975, md) * 2.4 + pow(md, 300.0) * 0.25);
-
   gl_FragColor = vec4(c, 1.0);
 }`
 
-/** Небо со звёздами, луной и солнцем — цвета от времени суток (atmosphere). Едет за героем: горизонт всегда далеко. */
+/**
+ * Небо и дальний фон — панорама 360° из Blender (см. world/skyPano.ts) + звёзды ночью.
+ * Сфера едет за героем: фон всегда «на бесконечности», как настоящее небо.
+ */
 export function Sky() {
-  const uniforms = useMemo(
-    () => ({
-      top: { value: new Color() },
-      horizon: { value: new Color() },
-      bottom: { value: new Color() },
-      sunDir: { value: new Vector3() },
-      sunColor: { value: new Color() },
-      sunGlow: { value: 0 },
-      moonDir: { value: MOON_DIR },
-      stars: { value: 0 },
-      time: { value: 0 },
-    }),
-    [],
-  )
+  const uniforms = useMemo(() => ({ ...panoUniforms, stars: { value: 0 }, time: { value: 0 }, gain: { value: 1.25 } }), [])
   const ref = useRef<Group>(null)
-  const mat = useRef<ShaderMaterial>(null)
-  useFrame(({ clock }) => {
+  useFrame(({ clock, camera }) => {
     ref.current?.position.copy(runtime.playerPos)
-    const u = mat.current?.uniforms
-    if (!u) return
-    u.top.value.copy(atmo.skyTop)
-    u.horizon.value.copy(atmo.skyHorizon)
-    u.bottom.value.copy(atmo.skyBottom)
-    u.sunDir.value.copy(atmo.sunDir)
-    u.sunColor.value.copy(atmo.sunColor)
-    u.sunGlow.value = atmo.sunGlow
-    u.stars.value = atmo.stars
-    u.time.value = clock.elapsedTime
+    updatePano(camera)
+    uniforms.stars.value = atmo.stars * 0.6
+    uniforms.time.value = clock.elapsedTime
   })
   return (
     <group ref={ref}>
-      <mesh scale={300} renderOrder={-1}>
-        <sphereGeometry args={[1, 48, 24]} />
-        <shaderMaterial ref={mat} side={BackSide} depthWrite={false} fog={false} uniforms={uniforms} vertexShader={SKY_VERT} fragmentShader={SKY_FRAG} />
+      <mesh scale={300} renderOrder={-1} frustumCulled={false}>
+        <sphereGeometry args={[1, 64, 32]} />
+        <shaderMaterial side={BackSide} depthWrite={false} fog={false} uniforms={uniforms} vertexShader={SKY_VERT} fragmentShader={SKY_FRAG} />
       </mesh>
     </group>
   )
