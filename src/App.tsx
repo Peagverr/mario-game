@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { GameCanvas } from './game/GameCanvas'
 import { control } from './shared/controlState'
 import { useGame } from './shared/gameStore'
+import { CameraLost, useCameraPause } from './ui/CameraLost'
 import { CameraPreview } from './ui/CameraPreview'
 import { HandCursor } from './ui/Dwell'
 import { Hints } from './ui/Hints'
@@ -22,8 +23,8 @@ function usePauseGesture() {
       if (control.pauseSeq === seen) return
       seen = control.pauseSeq
       const g = useGame.getState()
-      if (g.phase === 'playing') g.setPhase('paused')
-      else if (g.phase === 'paused') g.setPhase('playing')
+      if (g.phase === 'playing') g.pause('menu')
+      else if (g.phase === 'paused' && g.pauseReason === 'menu') g.setPhase('playing')
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -32,7 +33,9 @@ function usePauseGesture() {
 
 export function App() {
   const phase = useGame((s) => s.phase)
+  const pauseReason = useGame((s) => s.pauseReason)
   usePauseGesture()
+  useCameraPause()
 
   const inGame = phase !== 'start' && phase !== 'loading'
   const playable = phase === 'playing' || phase === 'tutorial' || phase === 'countdown'
@@ -48,7 +51,9 @@ export function App() {
       {phase === 'tutorial' && <Tutorial />}
       {phase === 'countdown' && <Countdown />}
       {phase === 'playing' && <HUD />}
-      {phase === 'paused' && <PauseMenu />}
+      {phase === 'paused' && pauseReason === 'menu' && <PauseMenu />}
+      {/* Поверх меню: камера пропала — пока её нет, меню всё равно не нажать. */}
+      {phase === 'paused' && <CameraLost />}
       {phase === 'results' && <Results />}
       {inGame && control.tracking.ready && <CameraPreview />}
       {playable && <Hints />}

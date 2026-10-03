@@ -12,6 +12,7 @@ import { useGame, type SceneId } from '../shared/gameStore'
 const FALL_COOLDOWN_MS = 12000
 const IDLE_AFTER_MS = 25000
 const IDLE_COOLDOWN_MS = 60000
+const CAMERA_COOLDOWN_MS = 60000
 
 /** Подсказка-ошибка → реплика. Нет в списке — подсказка только текстом. */
 const HINT_LINE: Partial<Record<HintCode, string>> = {
@@ -40,7 +41,8 @@ export function VoiceDirector() {
         // Обучение закончилось в лобби — к порталам.
         if (s.phase === 'playing' && p.phase === 'tutorial' && s.sceneId === 'lobby') story('short.lobby')
         if (s.phase === 'playing' && p.phase === 'countdown') LEVEL_INTRO[s.sceneId]?.forEach((id) => story(id, 8000))
-        if (s.phase === 'paused' && p.phase === 'playing') say('short.pause', { waitMs: 1500 })
+        // Пауза из-за камеры — про неё скажет подсказка «камера», «пауза» тут лишняя.
+        if (s.phase === 'paused' && p.phase === 'playing' && s.pauseReason === 'menu') say('short.pause', { waitMs: 1500 })
         if (s.phase === 'results') {
           clearVoice()
           story('finale.done')
@@ -74,6 +76,7 @@ export function VoiceDirector() {
     let seen = new Set<string>()
     let lastHandsAt = performance.now()
     let lastIdleAt = -Infinity
+    let lastCameraAt = -Infinity
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
@@ -81,12 +84,20 @@ export function VoiceDirector() {
       for (const code of codes) {
         if (seen.has(code)) continue
         const id = HINT_LINE[code] ?? `hint.${code}`
-        if (hasLine(id)) say(id, { priority: PRIORITY.hint, once: `hint:${code}`, waitMs: 2000, valid: () => control.hints.some((h) => h.code === code) })
+        if (!hasLine(id)) continue
+        const valid = () => control.hints.some((h) => h.code === code)
+        // Про камеру — каждый раз, как она пропала, но не чаще раза в минуту: это не ошибка игрока, а поломка.
+        if (code === 'camera-blocked') {
+          if (now - lastCameraAt < CAMERA_COOLDOWN_MS) continue
+          lastCameraAt = now
+          say(id, { priority: PRIORITY.hint, waitMs: 2000, valid })
+        } else say(id, { priority: PRIORITY.hint, once: `hint:${code}`, waitMs: 2000, valid })
       }
       seen = codes
 
       const g = useGame.getState()
-      if (control.hands.left || control.hands.right || g.phase !== 'playing') lastHandsAt = now
+      // Камеры нет — «подними ладонь» бессмысленно: про камеру уже сказано.
+      if (control.hands.left || control.hands.right || g.phase !== 'playing' || control.tracking.camera !== 'ok') lastHandsAt = now
       else if (now - lastHandsAt > IDLE_AFTER_MS && now - lastIdleAt > IDLE_COOLDOWN_MS) {
         lastIdleAt = now
         say('short.idle', { waitMs: 2000 })

@@ -1,4 +1,4 @@
-import type { HandState, Hint, HintCode } from '../shared/controlState'
+import type { CameraStatus, HandState, Hint, HintCode } from '../shared/controlState'
 import { FINGER_NAMES, FINGER_POINTS } from './gestures'
 
 /**
@@ -12,9 +12,11 @@ import { FINGER_NAMES, FINGER_POINTS } from './gestures'
  */
 
 /** Кадр темнее этого — не «темно в комнате», а закрытая камера (шторка, чужая программа). */
-const BLACK_FRAME = 0.03
+export const BLACK_FRAME = 0.03
 
 export type ErrorContext = {
+  /** Что с камерой (см. control.tracking.camera). */
+  camera: CameraStatus
   left: HandState | null
   right: HandState | null
   head: { z: number; visible: boolean; yawDeg: number }
@@ -55,8 +57,12 @@ function edgeHint(hand: HandState, side: 'left' | 'right'): Hint | null {
 }
 
 export function detectCandidates(c: ErrorContext): Hint[] {
-  // Чёрный кадр — причина всего остального («не вижу лицо», «подними руку»): говорим только о ней.
-  if (c.brightness < BLACK_FRAME) {
+  // Камера не присылает кадры или чёрный кадр — причина всего остального («не вижу лицо», «подними руку»):
+  // говорим только о ней.
+  if (c.camera === 'frozen' || c.camera === 'ended') {
+    return [{ code: 'camera-lost', text: 'Камера перестала присылать картинку — проверь, что она включена и её не заняла другая программа. Игра подключится к ней сама' }]
+  }
+  if (c.camera === 'black' || c.brightness < BLACK_FRAME) {
     return [{ code: 'camera-blocked', text: 'Камера показывает чёрный кадр — открой шторку камеры или закрой программу, которая её заняла' }]
   }
 
@@ -138,6 +144,8 @@ export function detectCandidates(c: ErrorContext): Hint[] {
 const HOLD_MS: Record<HintCode, number> = {
   // Первые кадры камеры бывают чёрными — не пугаем зря.
   'camera-blocked': 1000,
+  // Замершую камеру распознавание и так ждёт секунду, прежде чем сказать «кадры не идут».
+  'camera-lost': 0,
   'no-face': 0,
   'too-close': 700,
   'too-far': 900,
@@ -154,7 +162,7 @@ const HOLD_MS: Record<HintCode, number> = {
 
 /** Порядок важности: сначала то, без чего ничего не работает. */
 const PRIORITY: HintCode[] = [
-  'camera-blocked', 'dark', 'no-face', 'too-close', 'too-far', 'hand-turned', 'no-hands', 'wrong-hand',
+  'camera-lost', 'camera-blocked', 'dark', 'no-face', 'too-close', 'too-far', 'hand-turned', 'no-hands', 'wrong-hand',
   'hand-edge', 'palm-not-armed', 'fist-partial', 'head-turned',
 ]
 
@@ -212,6 +220,7 @@ export class HintFilter {
 /** Короткие советы для разбора ошибок на экране итогов. */
 export const ERROR_ADVICE: Record<HintCode, { title: string; tip: string }> = {
   'camera-blocked': { title: 'Камера не видит', tip: 'Открой шторку камеры и проверь, что её не заняла другая программа.' },
+  'camera-lost': { title: 'Камера отключалась', tip: 'Проверь, что камеру не выключает кнопка на ноутбуке и её не заняла другая программа.' },
   'fist-partial': { title: 'Неполный кулак', tip: 'Сжимай все четыре пальца разом — как будто хватаешь ручку.' },
   'hand-edge': { title: 'Рука у края кадра', tip: 'Держи руки ближе к груди, в центре кадра.' },
   'palm-not-armed': { title: 'Ладонь не в круге', tip: 'Сначала заведи ладонь в жёлтый круг в окне камеры — тогда герой начнёт слушаться.' },

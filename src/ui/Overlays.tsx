@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { sfx } from '../game/sfx'
-import { beginJoystickCalibration, calibrateJoystick, endJoystickCalibration, palmRingScale, resizePalmRing } from '../input/tracker'
+import {
+  beginJoystickCalibration,
+  calibrateJoystick,
+  endJoystickCalibration,
+  grabSpeed,
+  palmRingScale,
+  resizePalmRing,
+  scaleGrabSpeed,
+} from '../input/tracker'
 import { control } from '../shared/controlState'
 import { useGame, runSeconds } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
@@ -82,10 +90,13 @@ export function HUD() {
 
 /** «Круг больше / меньше» — во столько раз за нажатие. */
 const RING_STEP = 1.15
+/** «Поворот мира медленнее / быстрее» — во столько раз за нажатие. */
+const GRAB_STEP = 1.2
 
 export function PauseMenu() {
   const [setup, setSetup] = useState(false)
   const [ring, setRing] = useState(palmRingScale)
+  const [grab, setGrab] = useState(grabSpeed)
   const g = useGame.getState()
   if (setup) return <RingSetup onDone={() => setSetup(false)} />
   return (
@@ -103,6 +114,15 @@ export function PauseMenu() {
               В лобби
             </DwellButton>
           )}
+        </div>
+        <h3 className="menu__section">Поворот мира левым кулаком — {Math.round(grab * 100)}%</h3>
+        <div className="row row--tight">
+          <DwellButton variant="ghost" onActivate={() => setGrab(scaleGrabSpeed(1 / GRAB_STEP))}>
+            Медленнее
+          </DwellButton>
+          <DwellButton variant="ghost" onActivate={() => setGrab(scaleGrabSpeed(GRAB_STEP))}>
+            Быстрее
+          </DwellButton>
         </div>
         <h3 className="menu__section">Круг-джойстик — {Math.round(ring * 100)}%</h3>
         <div className="row row--tight">

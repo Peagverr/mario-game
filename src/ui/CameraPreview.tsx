@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { runtime } from '../game/runtime'
+import { poseDebug } from '../input/tracker'
 import { sfx } from '../game/sfx'
 import { control, type HandState } from '../shared/controlState'
 
@@ -41,16 +42,65 @@ function debugLine() {
     r ? `пальцы ${r.curls.map((c) => (c === 'curled' ? '●' : c === 'half' ? '◐' : '○')).join('')}` : '',
     h.visible ? `голова x${(h.x * 100).toFixed(0)} y${(h.y * 100).toFixed(0)} z${(h.z * 100).toFixed(0)} см` : 'лицо —',
   ]
+  parts.push(poseDebug())
   parts.push(`распозн. ${control.tracking.inferMs.toFixed(0)} мс`)
   return parts.filter(Boolean).join(' · ')
 }
 
-/** Что делает левый кулак: двигает мир (поворот и наклон вместе) или приближает — решают первые движения. */
+/** Что делает левый кулак: двигает мир (поворот и наклон вместе), докручивает его сам или приближает. */
 function describeGrab() {
   const v = control.view
   if (v.mode === 'zoom') return `Левая: зум ×${v.zoom.toFixed(1)}`
+  if (v.rate > 0) return 'Левая: мир крутится сам'
   if (v.mode === 'move') return 'Левая: держишь мир'
   return 'Левая: кулак — веди или толкай'
+}
+
+/**
+ * Зона левого кулака: круг вокруг места, где сжат кулак, — внутри мир едет за рукой; рука за кругом —
+ * круг подсвечен в её сторону, мир докручивается сам. При зуме круг пунктиром.
+ */
+function drawGrabZone(ctx: CanvasRenderingContext2D, h: HandState, k: { x: number; y: number }) {
+  const v = control.view
+  const px = h.palm.x * W
+  const py = h.palm.y * H
+  if (v.edge > 0) {
+    const ax = v.anchorX * W
+    const ay = v.anchorY * H
+    const rx = v.edge * k.x
+    const ry = v.edge * k.y
+    if (v.rate > 0) {
+      const a = Math.atan2((py - ay) / ry, (px - ax) / rx)
+      ctx.fillStyle = `rgba(46,196,182,${0.25 + 0.35 * v.rate})`
+      ctx.beginPath()
+      ctx.ellipse(ax, ay, rx * 1.35, ry * 1.35, 0, a - 0.6, a + 0.6)
+      ctx.ellipse(ax, ay, rx, ry, 0, a + 0.6, a - 0.6, true)
+      ctx.closePath()
+      ctx.fill()
+    }
+    ctx.strokeStyle = 'rgba(46,196,182,0.9)'
+    ctx.lineWidth = 2
+    if (v.mode === 'zoom') ctx.setLineDash([5, 4])
+    ctx.beginPath()
+    ctx.ellipse(ax, ay, rx, ry, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    if (v.mode !== 'zoom') {
+      ctx.lineWidth = 4
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(ax, ay)
+      ctx.lineTo(px, py)
+      ctx.stroke()
+    }
+  }
+  ctx.fillStyle = COLORS.left
+  ctx.strokeStyle = COLORS.cream
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(px, py, 7, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.stroke()
 }
 
 function describe(h: HandState | null, side: 'left' | 'right') {
@@ -256,14 +306,7 @@ export function CameraPreview() {
           ctx.arc(p.x * W, p.y * H, bad.has(i) ? pulse : 2.5, 0, Math.PI * 2)
           ctx.fill()
         })
-        if (side === 'left' && h.fist) {
-          const m = h.palm
-          ctx.strokeStyle = COLORS.left
-          ctx.lineWidth = 2
-          ctx.beginPath()
-          ctx.arc(m.x * W, m.y * H, 9, 0, Math.PI * 2)
-          ctx.stroke()
-        }
+        if (side === 'left' && h.fist) drawGrabZone(ctx, h, k)
       }
 
       // Кольцо — поверх скелета: ладонь почти всегда лежит на нём, и пальцы не должны его закрывать.

@@ -23,6 +23,7 @@ function openPalm(): HandState {
 }
 
 const base: ErrorContext = {
+  camera: 'ok',
   left: null,
   right: openPalm(),
   head: { z: 0.6, visible: true, yawDeg: 0 },
@@ -69,6 +70,13 @@ describe('чёрный кадр', () => {
   it('камера показывает чёрный кадр — одна подсказка про камеру, без «темно», «не вижу лицо» и «подними руку»', () => {
     const black = { brightness: 0.01, right: null, head: { z: 0.6, visible: false, yawDeg: 0 }, noFaceMs: 5000, noHandsMs: 5000, inTutorial: true }
     expect(codes(black)).toEqual(['camera-blocked'])
+  })
+
+  it('камера перестала присылать кадры или её отключили — одна подсказка «камера пропала», даже если яркость старая', () => {
+    const lost = { brightness: 0.6, right: null, head: { z: 0.6, visible: false, yawDeg: 0 }, noFaceMs: 5000, noHandsMs: 5000, inTutorial: true }
+    expect(codes({ ...lost, camera: 'frozen' })).toEqual(['camera-lost'])
+    expect(codes({ ...lost, camera: 'ended' })).toEqual(['camera-lost'])
+    expect(codes({ ...lost, camera: 'black' })).toEqual(['camera-blocked'])
   })
 
   it('просто темно, но что-то видно — подсказка про свет', () => {

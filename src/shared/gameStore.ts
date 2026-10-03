@@ -11,8 +11,14 @@ export type GestureStats = {
   errors: Partial<Record<HintCode, number>>
 }
 
+/** Почему пауза: игрок открыл меню или камера перестала его видеть. */
+export type PauseReason = 'menu' | 'camera'
+
 type GameState = {
   phase: Phase
+  pauseReason: PauseReason
+  /** Когда началась пауза (0 — не на паузе): время на паузе в счёт забега не идёт. */
+  pausedAt: number
   /** Текущая сцена: лобби или уровень. */
   sceneId: SceneId
   /** Номер забега: при «Сыграть ещё» сцена пересоздаётся с нуля. */
@@ -28,6 +34,8 @@ type GameState = {
   stats: GestureStats
 
   setPhase: (phase: Phase) => void
+  /** Поставить игру на паузу (из игры). */
+  pause: (reason: PauseReason) => void
   setStarsTotal: (n: number) => void
   collectStar: () => void
   setSecretsTotal: (n: number) => void
@@ -44,10 +52,12 @@ type GameState = {
 
 const emptyStats = (): GestureStats => ({ jumps: 0, errors: {} })
 
-const freshRun = () => ({ starsCollected: 0, secretsFound: 0, falls: 0, startedAt: 0, finishedAt: 0, stats: emptyStats() })
+const freshRun = () => ({ starsCollected: 0, secretsFound: 0, falls: 0, startedAt: 0, finishedAt: 0, pausedAt: 0, stats: emptyStats() })
 
 export const useGame = create<GameState>((set) => ({
   phase: 'start',
+  pauseReason: 'menu',
+  pausedAt: 0,
   sceneId: 'lobby',
   runId: 0,
   starsCollected: 0,
@@ -59,7 +69,16 @@ export const useGame = create<GameState>((set) => ({
   falls: 0,
   stats: emptyStats(),
 
-  setPhase: (phase) => set({ phase }),
+  setPhase: (phase) =>
+    set((s) => {
+      // Вышли из паузы обратно в игру — таймер забега сдвигается на время паузы.
+      if (s.phase === 'paused' && phase === 'playing' && s.pausedAt && s.startedAt) {
+        return { phase, pausedAt: 0, startedAt: s.startedAt + (performance.now() - s.pausedAt) }
+      }
+      if (phase === 'paused') return { phase, pausedAt: s.pausedAt || performance.now() }
+      return { phase, pausedAt: 0 }
+    }),
+  pause: (pauseReason) => set((s) => ({ phase: 'paused', pauseReason, pausedAt: s.pausedAt || performance.now() })),
   setStarsTotal: (starsTotal) => set({ starsTotal }),
   collectStar: () => set((s) => ({ starsCollected: s.starsCollected + 1 })),
   setSecretsTotal: (secretsTotal) => set({ secretsTotal }),

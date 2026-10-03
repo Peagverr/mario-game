@@ -16,6 +16,7 @@ export type Point = { x: number; y: number; z: number }
 
 export type HintCode =
   | 'camera-blocked'
+  | 'camera-lost'
   | 'no-face'
   | 'too-close'
   | 'too-far'
@@ -39,6 +40,8 @@ export type Hint = {
   /** Направление стрелки подсказки на экране. */
   arrow?: 'left' | 'right' | 'up' | 'down' | 'closer' | 'farther'
 }
+
+export type CameraStatus = 'ok' | 'black' | 'frozen' | 'ended'
 
 export type FingerCurl = 'extended' | 'half' | 'curled'
 
@@ -81,6 +84,11 @@ export const control = {
     inferMs: 0,
     /** Средняя яркость кадра 0..1. */
     brightness: 1,
+    /**
+     * Что с камерой: 'ok' — работает, 'black' — чёрный кадр (шторка), 'frozen' — кадры не идут,
+     * 'ended' — камеру отключили (распознавание само пробует подключить её снова).
+     */
+    camera: 'ok' as CameraStatus,
     /** Видео с камеры (для мини-окна со скелетом). */
     video: null as HTMLVideoElement | null,
   },
@@ -122,8 +130,10 @@ export const control = {
   /**
    * Левая рука «держит мир»: поворот и наклон (радианы от обычного вида), приближение (1 = обычный вид).
    * mode — что делает левый кулак: двигает мир или зум ('' — кулака нет или ещё не решил).
+   * Для мини-окна: anchorX/anchorY — где сжат кулак (доли кадра, зеркально), edge — радиус зоны, где мир едет
+   * за рукой (доли высоты кадра), rate — насколько рука за краем зоны (0..1: мир докручивается сам).
    */
-  view: { yaw: 0, pitch: 0, zoom: 1, grabbing: false, mode: '' as '' | 'move' | 'zoom' },
+  view: { yaw: 0, pitch: 0, zoom: 1, grabbing: false, mode: '' as '' | 'move' | 'zoom', anchorX: 0, anchorY: 0, edge: 0, rate: 0 },
 
   /** Счётчик вызовов меню (две раскрытые ладони ~0,8 с). */
   pauseSeq: 0,

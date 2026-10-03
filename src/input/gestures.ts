@@ -138,7 +138,8 @@ export class HandTracker {
     return {
       present: true,
       points,
-      world,
+      // Наружу — только настоящие объёмные точки в метрах (масштаб руки и запись жестов считают по ним).
+      world: rawWorld.length === 21 ? world : undefined,
       size,
       palm,
       curls,

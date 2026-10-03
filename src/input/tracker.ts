@@ -1,13 +1,14 @@
-import { FaceLandmarker, FilesetResolver, GestureRecognizer } from '@mediapipe/tasks-vision'
-import { control, type HandState, type Point } from '../shared/controlState'
+import { FaceLandmarker, FilesetResolver, GestureRecognizer, PoseLandmarker } from '@mediapipe/tasks-vision'
+import { control, type CameraStatus, type HandState, type Point } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
-import { detectCandidates, HintFilter } from './errors'
+import { BLACK_FRAME, detectCandidates, HintFilter } from './errors'
 import { HandTracker } from './gestures'
+import { armsFromPose, HandIdentity, type ArmRef, type HandSeen } from './handIdentity'
 import { estimateHead, FACE_PREVIEW_POINTS, yawFromMatrix } from './head'
 import { OneEuro3 } from './oneEuro'
 import { PalmJoystick, type FaceAnchor } from './palmJoystick'
 import { HandConfirm, HOLD_MS, isFaceGhost, nearFace, type FaceOval } from './ghostHands'
-import { WorldGrab } from './worldGrab'
+import { handScale, WorldGrab } from './worldGrab'
 
 /**
  * Цикл распознавания: камера → MediaPipe (руки + лицо) → наши правила → `control`.
@@ -18,7 +19,14 @@ const GESTURE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'
 const FACE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+/** Поза тела (плечи, локти, запястья): по ней понятно, на какой руке тела кулак (handIdentity.ts). */
+const POSE_MODEL =
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
 const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`
+/** Позу считаем, когда в кадре новая рука, и раз в столько мс — чтобы проверять уже узнанные руки. */
+const POSE_PERIOD_MS = 200
+/** Поза старше этого (мс) уже не годится: руки успели уехать. */
+const POSE_FRESH_MS = 250
 
 /**
  * MediaPipe в этой версии называет руки правильно для нашего (не отзеркаленного) кадра.
@@ -27,8 +35,15 @@ const WASM_PATH = `${import.meta.env.BASE_URL}mediapipe/wasm`
 const SWAP_HANDEDNESS = false
 /** Сколько мс держать мир, если левую руку на мгновение потеряли. */
 const GRAB_LOST_GRACE_MS = 250
-/** Рука дальше этого (в ширинах лица) по другую сторону от лица — значит, MediaPipe перепутал левую и правую. */
-const HANDEDNESS_FACE_MARGIN = 0.6
+/** Новых кадров с камеры нет дольше этого (мс) — камера замерла: руки отпускаем, герой стоит. */
+const FROZEN_MS = 1000
+/** Камера отключена или стоит дольше этого (мс) — пробуем подключить её заново, не чаще раза в RECONNECT_EVERY_MS. */
+const RECONNECT_AFTER_MS = 3000
+const RECONNECT_EVERY_MS = 3000
+/** Цикл не крутился дольше этого (мс) — вкладка была в фоне; это не «камера замерла». */
+const LOOP_GAP_MS = 500
+/** Рука на другой стороне ближе этого (доли кадра) к пропавшей — это она же, просто сменила сторону. */
+const RENAMED_DIST = 0.08
 /** Лицо старше этого (мс) не годится, чтобы ставить кольцо ладони. */
 const FACE_FRESH_MS = 600
 /** Две раскрытые ладони столько держать, чтобы открылось меню. */
@@ -36,13 +51,28 @@ const MENU_HOLD_MS = 800
 const JUMP_COOLDOWN_MS = 250
 /** Место и размер круга запоминаются в браузере: калибровка в обучении и кнопки в меню. */
 const PALM_SETTINGS_KEY = 'okno.palm.v1'
+/** Чувствительность левого кулака (меню «Поворот мира»). */
+const GRAB_SETTINGS_KEY = 'okno.grab.v1'
+const GRAB_SPEED_LIMITS = [0.5, 2] as const
+const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  // 60 кадров/с, если камера умеет: выдержка короче — быстрая рука меньше смазывается и не теряется.
+  width: { ideal: 640 },
+  height: { ideal: 480 },
+  frameRate: { ideal: 60 },
+  facingMode: 'user',
+}
 
 let recognizer: GestureRecognizer | null = null
 let face: FaceLandmarker | null = null
+/** Грузится в фоне после старта: пока её нет, руки узнаются без позы. */
+let pose: PoseLandmarker | null = null
 let video: HTMLVideoElement | null = null
+let stream: MediaStream | null = null
 let running = false
 
 const trackers = { left: new HandTracker(), right: new HandTracker() }
+/** Какая рука левая, а какая правая — с памятью между кадрами (handIdentity.ts). */
+const identity = new HandIdentity()
 /** Подтверждение новых рук (защита от призраков, см. ghostHands.ts). */
 const confirm = { left: new HandConfirm(), right: new HandConfirm() }
 // Голова: быстрее реагирует на движение (эффект окна не должен запаздывать), в покое всё ещё гладко.
@@ -85,6 +115,16 @@ const s = {
   frame: 0,
   lastFrameAt: 0,
   lastVideoTime: -1,
+  /** Когда пришёл последний новый кадр с камеры и когда последний раз крутился цикл. */
+  lastNewFrameAt: 0,
+  lastLoopAt: 0,
+  /** Камеру отключили (дорожка видео закончилась) — ждём, пока подключится снова. */
+  cameraEnded: false,
+  reconnecting: false,
+  lastReconnectAt: 0,
+  /** Запястья по позе тела и когда их посчитали. */
+  arms: null as ArmRef | null,
+  armsAt: 0,
 }
 
 export type TrackerStatus = 'camera' | 'models' | 'ready'
@@ -139,6 +179,32 @@ try {
   // Нет сохранённого — круг по умолчанию.
 }
 
+/** «Поворот мира медленнее / быстрее» из меню. Возвращает новую чувствительность (1 = 100%). */
+export function scaleGrabSpeed(factor: number) {
+  const [lo, hi] = GRAB_SPEED_LIMITS
+  worldGrab.speed = Math.min(hi, Math.max(lo, worldGrab.speed * factor))
+  try {
+    localStorage.setItem(GRAB_SETTINGS_KEY, JSON.stringify({ speed: worldGrab.speed }))
+  } catch {
+    // Хранилище недоступно — настройка просто не запомнится.
+  }
+  return worldGrab.speed
+}
+
+/** Чувствительность левого кулака (1 = 100%). */
+export function grabSpeed() {
+  return worldGrab.speed
+}
+
+// Чувствительность кулака с прошлого раза.
+try {
+  const saved = JSON.parse(localStorage.getItem(GRAB_SETTINGS_KEY) ?? 'null')
+  const speed = Number(saved?.speed)
+  if (speed >= GRAB_SPEED_LIMITS[0] && speed <= GRAB_SPEED_LIMITS[1]) worldGrab.speed = speed
+} catch {
+  // Нет сохранённого — обычная чувствительность.
+}
+
 function videoAspect() {
   return video && video.videoHeight ? video.videoWidth / video.videoHeight : 4 / 3
 }
@@ -175,44 +241,145 @@ async function createTasks() {
       }),
     ])
   try {
-    return await make('GPU')
+    const tasks = await make('GPU')
+    void createPose(vision, 'GPU')
+    return tasks
   } catch (e) {
     console.warn('[tracker] GPU недоступен, переключаюсь на CPU', e)
-    return make('CPU')
+    const tasks = await make('CPU')
+    void createPose(vision, 'CPU')
+    return tasks
+  }
+}
+
+/** Поза — в фоне, после старта: игра не ждёт лишние 6 МБ. Не загрузилась — руки узнаются без неё. */
+async function createPose(vision: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>, delegate: 'GPU' | 'CPU') {
+  try {
+    pose = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: POSE_MODEL, delegate },
+      runningMode: 'VIDEO',
+      numPoses: 1,
+    })
+  } catch (e) {
+    console.warn('[tracker] поза тела не загрузилась — руки узнаются без неё', e)
+  }
+}
+
+/** Для отладки (?debug): загружена ли поза и какие запястья тела она видит. */
+export function poseDebug() {
+  if (!pose) return 'поза —'
+  const a = performance.now() - s.armsAt < 1000 ? s.arms : null
+  if (!a) return 'поза: нет плеч'
+  return `поза: Л${a.left ? '✓' : '—'} П${a.right ? '✓' : '—'}`
+}
+
+/** Посчитать позу на этом кадре. */
+function updateArms(t: number) {
+  if (!pose || !video) return
+  try {
+    s.arms = armsFromPose(pose.detectForVideo(video, t).landmarks[0], videoAspect())
+    s.armsAt = t
+  } catch (e) {
+    console.warn('[tracker] поза тела: ошибка, выключаю', e)
+    pose = null
   }
 }
 
 export async function startTracking(onStatus: (s: TrackerStatus) => void) {
   if (running) return
   onStatus('camera')
-  const stream = await navigator.mediaDevices.getUserMedia({
-    // 60 кадров/с, если камера умеет: выдержка короче — быстрая рука меньше смазывается и не теряется.
-    video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60 }, facingMode: 'user' },
-    audio: false,
-  })
+  stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO_CONSTRAINTS, audio: false })
+  watchStream(stream)
   video = document.createElement('video')
   video.srcObject = stream
   video.muted = true
   video.playsInline = true
   await video.play()
   control.tracking.video = video
+  // Подключили или отключили камеру в системе — если наша не работает, пробуем сразу, не ждём таймера.
+  navigator.mediaDevices.addEventListener?.('devicechange', () => {
+    if (control.tracking.camera === 'ended' || control.tracking.camera === 'frozen') void reconnectCamera()
+  })
 
   onStatus('models')
   ;[recognizer, face] = await createTasks()
 
   running = true
   control.tracking.ready = true
+  s.lastNewFrameAt = s.lastLoopAt = performance.now()
   onStatus('ready')
   requestAnimationFrame(loop)
+}
+
+/** Камеру отключили (кнопка на ноутбуке, драйвер, кабель) — дорожка видео заканчивается. */
+function watchStream(st: MediaStream) {
+  for (const track of st.getVideoTracks()) {
+    track.addEventListener('ended', () => {
+      if (stream === st) s.cameraEnded = true
+    })
+  }
+}
+
+/** Подключить камеру заново. Разрешение уже дано — браузер не спрашивает ещё раз. */
+async function reconnectCamera() {
+  if (s.reconnecting || !video) return
+  s.reconnecting = true
+  s.lastReconnectAt = performance.now()
+  try {
+    const next = await navigator.mediaDevices.getUserMedia({ video: VIDEO_CONSTRAINTS, audio: false })
+    const old = stream
+    stream = next
+    watchStream(next)
+    video.srcObject = next
+    await video.play()
+    old?.getTracks().forEach((tr) => tr.stop())
+    s.cameraEnded = false
+    s.lastVideoTime = -1
+  } catch (e) {
+    // Камера всё ещё занята или выключена — попробуем позже.
+    console.warn('[tracker] камера пока не подключается', e)
+  } finally {
+    s.reconnecting = false
+    s.lastReconnectAt = performance.now()
+  }
+}
+
+/** Пустой результат распознавания: «рук не видно» — через него руки отпускаются как обычно (герой встаёт, мир отпускается). */
+const NO_HANDS = { landmarks: [], worldLandmarks: [], handedness: [], gestures: [] } as unknown as ReturnType<GestureRecognizer['recognizeForVideo']>
+
+function cameraStatus(t: number): CameraStatus {
+  if (s.cameraEnded) return 'ended'
+  if (t - s.lastNewFrameAt > FROZEN_MS) return 'frozen'
+  if (control.tracking.brightness < BLACK_FRAME) return 'black'
+  return 'ok'
 }
 
 function loop() {
   if (!running || !video || !recognizer || !face) return
   requestAnimationFrame(loop)
-  if (video.readyState < 2 || video.currentTime === s.lastVideoTime) return
-  s.lastVideoTime = video.currentTime
-
   const t = performance.now()
+  // Вкладка была в фоне — цикл стоял, а не камера.
+  if (t - s.lastLoopAt > LOOP_GAP_MS) s.lastNewFrameAt = t
+  s.lastLoopAt = t
+
+  if (video.readyState < 2 || video.currentTime === s.lastVideoTime) {
+    // Новых кадров нет. Если долго — камера замерла: руки и лицо отпускаем, подсказываем, переподключаемся.
+    const cam = cameraStatus(t)
+    control.tracking.camera = cam
+    if (cam === 'frozen' || cam === 'ended') {
+      processHands(NO_HANDS, t)
+      control.head.visible = false
+      control.face.points = []
+      updateHints(t)
+      if (t - s.lastNewFrameAt > RECONNECT_AFTER_MS || cam === 'ended') {
+        if (t - s.lastReconnectAt > RECONNECT_EVERY_MS) void reconnectCamera()
+      }
+    }
+    return
+  }
+  s.lastVideoTime = video.currentTime
+  s.lastNewFrameAt = t
+
   const t0 = performance.now()
   const hands = recognizer.recognizeForVideo(video, t)
   processHands(hands, t)
@@ -220,6 +387,7 @@ function loop() {
   if (s.frame % 2 === 0) processFace(face.detectForVideo(video, t), t)
   control.tracking.inferMs += (performance.now() - t0 - control.tracking.inferMs) * 0.1
   if (s.frame++ % 15 === 0) measureBrightness(video)
+  control.tracking.camera = cameraStatus(t)
   updateHints(t)
 
   const dt = t - s.lastFrameAt
@@ -228,38 +396,48 @@ function loop() {
 }
 
 const mirror = (p: { x: number; y: number; z: number }): Point => ({ x: 1 - p.x, y: p.y, z: p.z })
+/** Центр ладони: запястье и основания пальцев (кончики при сжатии кулака прыгают). */
+const PALM_POINTS = [0, 5, 9, 13, 17]
 
 function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t: number) {
-  const aspect = video!.videoWidth / video!.videoHeight
+  const aspect = videoAspect()
   const found: { side: 'left' | 'right'; points: Point[]; world: Point[]; gesture: string; nearFace: boolean }[] = []
 
   const oval = faceAnchor(t) ? s.faceOval : null
+  const seen: HandSeen[] = []
   res.landmarks.forEach((lm, i) => {
     const points = lm.map(mirror)
     // Рука-призрак на лице (MediaPipe путает лицо с ладонью при быстром движении головы) — пропускаем.
     const sq = points.map(toSquare)
     if (isFaceGhost(sq, oval, s.faceSpeed)) return
     const world = (res.worldLandmarks[i] ?? []).map((p) => ({ x: -p.x, y: p.y, z: p.z }))
-    const label = res.handedness[i]?.[0]?.categoryName
+    const hd = res.handedness[i]?.[0]
+    const label = hd?.categoryName === 'Right' || hd?.categoryName === 'Left' ? hd.categoryName : null
     const isRight = SWAP_HANDEDNESS ? label === 'Left' : label === 'Right'
-    found.push({ side: isRight ? 'right' : 'left', points, world, gesture: res.gestures[i]?.[0]?.categoryName ?? 'None', nearFace: nearFace(sq, oval) })
+    const gesture = res.gestures[i]?.[0]?.categoryName ?? 'None'
+    const palm = PALM_POINTS.reduce((a, j) => ({ x: a.x + sq[j].x / PALM_POINTS.length, y: a.y + sq[j].y / PALM_POINTS.length }), { x: 0, y: 0 })
+    seen.push({
+      ...palm,
+      wrist: sq[0],
+      size: Math.hypot(sq[9].x - sq[0].x, sq[9].y - sq[0].y),
+      label: label ? (isRight ? 'right' : 'left') : null,
+      score: hd?.score ?? 0.5,
+      fist: gesture === 'Closed_Fist',
+    })
+    found.push({ side: 'left', points, world, gesture, nearFace: nearFace(sq, oval) })
   })
-  // Левый кулак держит мир, правый — прыжок: путать руки нельзя. Если рука явно с другой стороны от лица,
-  // чем её назвал MediaPipe (дальше HANDEDNESS_FACE_MARGIN ширин лица), верим положению, а не метке.
-  const f = faceAnchor(t)
-  if (f) {
-    for (const h of found) {
-      const dx = (h.points[0].x * aspect - f.x) / f.w
-      if (h.side === 'right' && dx < -HANDEDNESS_FACE_MARGIN) h.side = 'left'
-      else if (h.side === 'left' && dx > HANDEDNESS_FACE_MARGIN) h.side = 'right'
-    }
-  }
-  // Если две руки получили одинаковую метку — решаем по положению: правее на экране = правая.
-  if (found.length === 2 && found[0].side === found[1].side) {
-    const [a, b] = found
-    const aRight = a.points[0].x > b.points[0].x
-    a.side = aRight ? 'right' : 'left'
-    b.side = aRight ? 'left' : 'right'
+  // Левый кулак держит мир, правый — прыжок: путать руки нельзя. Сторону решаем, когда рука появилась,
+  // и дальше узнаём руку по непрерывному движению (handIdentity.ts) — где она относительно головы, уже не важно.
+  // Поза тела (на какой руке тела кулак): считать её дорого (~как руки), поэтому — только в кадры без лица
+  // (лицо считается в чётные), когда рука новая, и раз в POSE_PERIOD_MS для проверки уже узнанных рук.
+  const poseFrame = s.frame % 2 === 1
+  if (seen.length && poseFrame && (identity.needsArms(seen, t) || t - s.armsAt > POSE_PERIOD_MS)) updateArms(t)
+  const arms = t - s.armsAt < POSE_FRESH_MS ? s.arms : null
+  const sides = identity.assign(seen, t, faceAnchor(t), aspect, arms)
+  for (let i = found.length - 1; i >= 0; i--) {
+    const side = sides[i]
+    if (side) found[i].side = side
+    else found.splice(i, 1)
   }
 
   // Новая рука у лица засчитывается, только если её видно несколько кадров подряд: призраки мелькают на 1–2 кадра.
@@ -272,12 +450,18 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
   const next: { left: HandState | null; right: HandState | null } = { left: null, right: null }
   for (const f of found) next[f.side] = trackers[f.side].update(f.points, f.world, f.gesture, aspect, t)
   // Рука пропала на долю секунды (смазалась при рывке) — держим последнее положение, управление не обрывается.
+  // Но если она не пропала, а сменила сторону (handIdentity поправил ошибку), старую копию не держим.
+  let renamed = false
   for (const side of ['left', 'right'] as const) {
+    const prev = control.hands[side]
+    const now = next[side === 'left' ? 'right' : 'left']
+    const moved = !next[side] && prev && now && Math.hypot(now.palm.x - prev.palm.x, now.palm.y - prev.palm.y) < RENAMED_DIST
+    if (moved) renamed = true
     if (next[side]) s.handSeenAt[side] = t
-    else if (control.hands[side] && t - s.handSeenAt[side] < HOLD_MS) next[side] = control.hands[side]
+    else if (prev && !moved && t - s.handSeenAt[side] < HOLD_MS) next[side] = prev
     else trackers[side].reset()
   }
-  if (!next.left && s.wasLeftGrabbing) s.leftLostWhileGrabAt = t
+  if (!next.left && s.wasLeftGrabbing && !renamed) s.leftLostWhileGrabAt = t
   if (next.left) s.leftLostWhileGrabAt = 0
   s.wasLeftGrabbing = !!next.left?.fist
   control.hands.left = next.left
@@ -354,21 +538,29 @@ function applyGrab(l: HandState | null, t: number) {
   if (!l || !grabbing) {
     s.grabbing = false
     control.view.mode = ''
+    control.view.edge = 0
+    control.view.rate = 0
     return
   }
   s.lastGrabAt = t
-  // Центр ладони стабилен, когда кулак сжат (кончики пальцев прыгают).
-  const p = { x: l.palm.x, y: l.palm.y, size: l.size }
+  // Центр ладони стабилен, когда кулак сжат (кончики пальцев прыгают). Масштаб — по костям ладони, а не по одной.
+  const aspect = videoAspect()
+  const p = { x: l.palm.x, y: l.palm.y, scale: handScale(l.points, l.world, aspect) }
   if (!s.grabbing) {
     const v = control.view
-    worldGrab.start(p, { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom }, videoAspect())
+    worldGrab.start(p, { yaw: v.yaw, pitch: v.pitch, zoom: v.zoom }, aspect, t)
     s.grabbing = true
   }
-  const v = worldGrab.move(p)
+  const v = worldGrab.move(p, t)
   control.view.yaw = v.yaw
   control.view.pitch = v.pitch
   control.view.zoom = v.zoom
   control.view.mode = worldGrab.axis ?? ''
+  const z = worldGrab.zone
+  control.view.anchorX = z.x
+  control.view.anchorY = z.y
+  control.view.edge = z.edge
+  control.view.rate = z.rate
 }
 
 /**
@@ -466,6 +658,7 @@ function updateHints(t: number) {
   const phase = useGame.getState().phase
   const active = phase === 'playing' || phase === 'tutorial' || phase === 'countdown'
   const candidates = detectCandidates({
+    camera: control.tracking.camera,
     left: control.hands.left,
     right: control.hands.right,
     head: control.head,
