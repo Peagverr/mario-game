@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIRM_FRAMES, HandConfirm, insideFaceRatio, isFaceGhost, type FaceOval, type Pt } from './ghostHands'
+import { CONFIRM_FRAMES, HandConfirm, insideFaceRatio, isFaceGhost, nearFace, type FaceOval, type Pt } from './ghostHands'
 
 const FACE: FaceOval = { cx: 0.66, cy: 0.4, rx: 0.15, ry: 0.2 }
 /** 21 точка «руки» вокруг центра с разбросом r. */
@@ -39,5 +39,12 @@ describe('руки-призраки на лице', () => {
     expect(c.update(true)).toBe(true)
     expect(c.update(false)).toBe(false)
     expect(c.update(true)).toBe(false)
+  })
+
+  it('рука вдали от лица принимается сразу — после рывка управление не ждёт', () => {
+    const c = new HandConfirm()
+    expect(c.update(true, false)).toBe(true)
+    expect(nearFace(hand(1.4, 0.5), FACE)).toBe(false)
+    expect(nearFace(hand(0.8, 0.45), FACE)).toBe(true)
   })
 })

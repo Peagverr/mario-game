@@ -49,7 +49,7 @@ export function hazy<T extends MeshStandardMaterial>(mt: T, { far = 0.9, low = 0
           float hz = max(smoothstep(fogNear, fogFar * 1.7, vFogDepth) * ${f(far)}, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * ${f(low)});
           // цвет дымки — из панорамы в том же направлении (размыто): скала тает ровно в тот фон, что за ней
           vec3 wdir = viewToWorld * normalize(-vViewPosition);
-          vec3 hc = panoSample(wdir, 5.0) * 1.25; // та же яркость, что у неба (gain в Sky)
+          vec3 hc = panoSample(wdir, 5.0) * 0.95; // чуть темнее неба: дальние руины — силуэты в дымке, а не светлые пятна
           ${
             rim > 0
               ? `float rimF = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);

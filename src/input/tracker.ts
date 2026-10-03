@@ -6,7 +6,7 @@ import { HandTracker } from './gestures'
 import { estimateHead, FACE_PREVIEW_POINTS, yawFromMatrix } from './head'
 import { OneEuro3 } from './oneEuro'
 import { PalmJoystick, type FaceAnchor } from './palmJoystick'
-import { HandConfirm, isFaceGhost, type FaceOval } from './ghostHands'
+import { HandConfirm, HOLD_MS, isFaceGhost, nearFace, type FaceOval } from './ghostHands'
 import { WorldGrab } from './worldGrab'
 
 /**
@@ -75,6 +75,8 @@ const s = {
   pauseSince: 0,
   pauseArmed: true,
   lastHandsAt: 0,
+  /** Когда каждую руку видели последний раз (для удержания при коротком пропадании). */
+  handSeenAt: { left: 0, right: 0 },
   lastFaceAt: 0,
   onlyLeftSince: 0,
   /** Когда левая рука пропала посреди хвата кулаком (скорее всего, повернулась ребром к камере). */
@@ -159,9 +161,9 @@ async function createTasks() {
         baseOptions: { modelAssetPath: GESTURE_MODEL, delegate },
         runningMode: 'VIDEO',
         numHands: 2,
-        // Новую руку — только уверенно (на 0.5 лицо при быстром движении головы находилось как ладонь),
-        // а уже найденную держим на низких порогах, чтобы не терялась при повороте ребром к камере.
-        minHandDetectionConfidence: 0.65,
+        // Чуть выше стандартных 0.5 (лицо при быстром движении головы находилось как ладонь — его отсекает
+        // ghostHands.ts), но не выше: иначе смазанная при рывке рука находится заново слишком поздно.
+        minHandDetectionConfidence: 0.55,
         minHandPresenceConfidence: 0.35,
         minTrackingConfidence: 0.35,
       }),
@@ -184,7 +186,8 @@ export async function startTracking(onStatus: (s: TrackerStatus) => void) {
   if (running) return
   onStatus('camera')
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+    // 60 кадров/с, если камера умеет: выдержка короче — быстрая рука меньше смазывается и не теряется.
+    video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60 }, facingMode: 'user' },
     audio: false,
   })
   video = document.createElement('video')
@@ -228,17 +231,18 @@ const mirror = (p: { x: number; y: number; z: number }): Point => ({ x: 1 - p.x,
 
 function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t: number) {
   const aspect = video!.videoWidth / video!.videoHeight
-  const found: { side: 'left' | 'right'; points: Point[]; world: Point[]; gesture: string }[] = []
+  const found: { side: 'left' | 'right'; points: Point[]; world: Point[]; gesture: string; nearFace: boolean }[] = []
 
   const oval = faceAnchor(t) ? s.faceOval : null
   res.landmarks.forEach((lm, i) => {
     const points = lm.map(mirror)
     // Рука-призрак на лице (MediaPipe путает лицо с ладонью при быстром движении головы) — пропускаем.
-    if (isFaceGhost(points.map(toSquare), oval, s.faceSpeed)) return
+    const sq = points.map(toSquare)
+    if (isFaceGhost(sq, oval, s.faceSpeed)) return
     const world = (res.worldLandmarks[i] ?? []).map((p) => ({ x: -p.x, y: p.y, z: p.z }))
     const label = res.handedness[i]?.[0]?.categoryName
     const isRight = SWAP_HANDEDNESS ? label === 'Left' : label === 'Right'
-    found.push({ side: isRight ? 'right' : 'left', points, world, gesture: res.gestures[i]?.[0]?.categoryName ?? 'None' })
+    found.push({ side: isRight ? 'right' : 'left', points, world, gesture: res.gestures[i]?.[0]?.categoryName ?? 'None', nearFace: nearFace(sq, oval) })
   })
   // Левый кулак держит мир, правый — прыжок: путать руки нельзя. Если рука явно с другой стороны от лица,
   // чем её назвал MediaPipe (дальше HANDEDNESS_FACE_MARGIN ширин лица), верим положению, а не метке.
@@ -258,16 +262,21 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     b.side = aRight ? 'left' : 'right'
   }
 
-  // Новая рука засчитывается, только если её видно несколько кадров подряд: призраки мелькают на 1–2 кадра.
+  // Новая рука у лица засчитывается, только если её видно несколько кадров подряд: призраки мелькают на 1–2 кадра.
   for (const side of ['left', 'right'] as const) {
-    const ok = confirm[side].update(found.some((h) => h.side === side))
+    const h = found.find((x) => x.side === side)
+    const ok = confirm[side].update(!!h, !!h?.nearFace)
     if (!ok) for (let i = found.length - 1; i >= 0; i--) if (found[i].side === side) found.splice(i, 1)
   }
 
   const next: { left: HandState | null; right: HandState | null } = { left: null, right: null }
   for (const f of found) next[f.side] = trackers[f.side].update(f.points, f.world, f.gesture, aspect, t)
-  if (!next.left) trackers.left.reset()
-  if (!next.right) trackers.right.reset()
+  // Рука пропала на долю секунды (смазалась при рывке) — держим последнее положение, управление не обрывается.
+  for (const side of ['left', 'right'] as const) {
+    if (next[side]) s.handSeenAt[side] = t
+    else if (control.hands[side] && t - s.handSeenAt[side] < HOLD_MS) next[side] = control.hands[side]
+    else trackers[side].reset()
+  }
   if (!next.left && s.wasLeftGrabbing) s.leftLostWhileGrabAt = t
   if (next.left) s.leftLostWhileGrabAt = 0
   s.wasLeftGrabbing = !!next.left?.fist

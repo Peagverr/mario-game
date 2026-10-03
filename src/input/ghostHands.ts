@@ -4,8 +4,9 @@
  * Два фильтра (оба по координатам кадра в «квадратных» единицах, как в tracker.ts):
  *  1) рука, чьи точки в основном лежат внутри овала лица, — не рука (лицо распознаётся отдельно и надёжно);
  *     когда голова движется быстро, порог строже — призраки появляются именно тогда;
- *  2) новая рука принимается, только если её видно несколько кадров подряд — призраки мелькают на 1–2 кадра.
- *     Уже найденная рука не ждёт: ведение героя не запаздывает.
+ *  2) новая рука РЯДОМ С ЛИЦОМ принимается, только если её видно несколько кадров подряд — призраки мелькают
+ *     на 1–2 кадра. Вдали от лица рука принимается сразу: иначе после рывка (рука смазалась и пропала)
+ *     управление ждало бы лишние кадры. Уже найденная рука не ждёт никогда.
  */
 
 export type Pt = { x: number; y: number }
@@ -29,8 +30,25 @@ export const FACE_GHOST_RATIO = 0.7
 /** Голова движется быстро (ширин лица в секунду) — порог строже. */
 export const FAST_FACE_SPEED = 1.5
 export const FACE_GHOST_RATIO_FAST = 0.55
-/** Сколько кадров подряд надо видеть новую руку. */
+/** Сколько кадров подряд надо видеть новую руку у лица. */
 export const CONFIRM_FRAMES = 3
+/** «У лица» — центр руки ближе стольких ширин лица к центру лица. */
+export const NEAR_FACE_WIDTHS = 1.1
+/** Рука пропала (смазалась при рывке) — столько мс держим её последнее положение, а не бросаем управление. */
+export const HOLD_MS = 120
+
+export function nearFace(points: Pt[], face: FaceOval | null) {
+  if (!face || !points.length) return false
+  let x = 0
+  let y = 0
+  for (const p of points) {
+    x += p.x
+    y += p.y
+  }
+  x /= points.length
+  y /= points.length
+  return Math.hypot(x - face.cx, y - face.cy) < NEAR_FACE_WIDTHS * face.rx * 2
+}
 
 export function isFaceGhost(points: Pt[], face: FaceOval | null, faceSpeed: number) {
   if (!face) return false
@@ -42,14 +60,14 @@ export function isFaceGhost(points: Pt[], face: FaceOval | null, faceSpeed: numb
 export class HandConfirm {
   private streak = 0
   private accepted = false
-  update(seen: boolean) {
+  update(seen: boolean, needsConfirm = true) {
     if (!seen) {
       this.streak = 0
       this.accepted = false
       return false
     }
     this.streak++
-    if (this.streak >= CONFIRM_FRAMES) this.accepted = true
+    if (!needsConfirm || this.streak >= CONFIRM_FRAMES) this.accepted = true
     return this.accepted
   }
 }

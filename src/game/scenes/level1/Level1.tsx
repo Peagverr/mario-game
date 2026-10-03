@@ -3,6 +3,7 @@ import { useGame } from '../../../shared/gameStore'
 import { LightShafts } from '../../LightShafts'
 import { Player } from '../../Player'
 import { Surroundings } from '../../world/Surroundings'
+import { Towers } from '../../world/Towers'
 import { Goal, Stars } from './Collectibles'
 import { level1 } from './levelData'
 import { Platforms } from './Platforms'
@@ -28,6 +29,7 @@ export function Level1() {
       <Stars positions={level1.stars} />
       <Goal position={level1.goal} />
       <Player spawn={level1.spawn} killY={level1.killY} />
+      <Towers position={[2, 0, -8]} rotation={-0.4} />
       <LightShafts shafts={SHAFTS} />
       <Surroundings center={[2, 0, -8]} seed={5} />
     </>

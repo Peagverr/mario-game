@@ -10,6 +10,7 @@ import { burst, runtime } from '../../runtime'
 import { sfx } from '../../sfx'
 import { stoneBlock, stoneKit, TILE } from '../../world/stoneKit'
 import { Surroundings } from '../../world/Surroundings'
+import { Towers } from '../../world/Towers'
 import { LightShafts } from '../../LightShafts'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
@@ -62,6 +63,7 @@ export function Level2() {
         </div>
       </Html>
       <Player spawn={level2.spawn} killY={level2.killY} />
+      <Towers position={[7, 0, -8]} />
       <LightShafts shafts={SHAFTS} />
       <Surroundings center={[7, 0, -8]} seed={7} />
     </>

@@ -2,13 +2,13 @@ import { Sparkles, useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useMemo } from 'react'
 import {
+  Mesh,
   AdditiveBlending,
   Color,
   DoubleSide,
   MeshBasicMaterial,
   ShaderMaterial,
   Vector3,
-  type Mesh,
   type MeshStandardMaterial,
 } from 'three'
 import { runtime } from '../../runtime'
@@ -16,6 +16,7 @@ import { LEVELS } from '../index'
 import { LightShafts } from '../../LightShafts'
 import { hazy } from '../../world/haze'
 import { Surroundings } from '../../world/Surroundings'
+import { warmWindows } from '../../world/Towers'
 import { GlowPools } from '../../world/GlowPools'
 
 /**
@@ -65,28 +66,42 @@ void main() {
   gl_FragColor = vec4(color * glow * 2.6, glow);
 }`
 
-const KEEP_R = 16
+const FAR_HAZE = { far: 0.5, low: 0.7, nearFade: 34 }
 
-/** Оставить в меше только треугольники, центр которых ближе r (по горизонтали) к центру острова. */
-function keepNear(m: Mesh, r: number) {
+/**
+ * Разделить меш по расстоянию от центра острова: в исходном остаются треугольники ближе r (стена и скалы острова),
+ * дальние уходят в новый меш (рядом, тот же родитель) с копией материала. Возвращает новый меш.
+ */
+function splitFar(m: Mesh, r: number) {
   const g = m.geometry
   const pos = g.attributes.position
   const idx = g.index
   const n = idx ? idx.count : pos.count
-  const keep: number[] = []
+  const near: number[] = []
+  const far: number[] = []
   const v = new Vector3()
   for (let i = 0; i < n; i += 3) {
     let cx = 0
     let cz = 0
     for (let k = 0; k < 3; k++) {
-      const vi = idx ? idx.getX(i + k) : i + k
-      v.fromBufferAttribute(pos, vi).applyMatrix4(m.matrixWorld)
+      v.fromBufferAttribute(pos, idx ? idx.getX(i + k) : i + k).applyMatrix4(m.matrixWorld)
       cx += v.x / 3
       cz += v.z / 3
     }
-    if (cx * cx + cz * cz < r * r) for (let k = 0; k < 3; k++) keep.push(idx ? idx.getX(i + k) : i + k)
+    const dst = cx * cx + cz * cz < r * r ? near : far
+    for (let k = 0; k < 3; k++) dst.push(idx ? idx.getX(i + k) : i + k)
   }
-  g.setIndex(keep)
+  const fg = g.clone()
+  fg.setIndex(far)
+  g.setIndex(near)
+  const mats = Array.isArray(m.material) ? m.material.map((x) => x.clone()) : m.material.clone()
+  const fm = new Mesh(fg, mats)
+  fm.name = 'BackdropFar'
+  fm.position.copy(m.position)
+  fm.quaternion.copy(m.quaternion)
+  fm.scale.copy(m.scale)
+  m.parent?.add(fm)
+  return fm
 }
 
 /** Свет фонарей и порталов на камне (вместо точечных источников). */
@@ -100,20 +115,19 @@ export function LobbyWorld() {
   const { scene } = useGLTF(URL)
   const films = useMemo(() => {
     const out: ShaderMaterial[] = []
+    // Куски фона в модели смешаны: рядом — стена и скалы острова, дальше 16 м — башни и мосты.
+    // Делим: дальнюю часть — в отдельный меш со своей дымкой и растворением у камеры.
     scene.updateMatrixWorld(true)
-    // Старые башни и островки из модели убираем: дальний фон — панорама, средний план — Surroundings.
-    // Они стояли в 55–200 м, при повороте мира камера подлетала к ним, и туман заливал их сплошным голубым.
-    // В тех же кусках модели — стена и скалы самого острова: их оставляем (всё в радиусе KEEP_R).
+    const splits: Mesh[] = []
     scene.traverse((o) => {
       const m = o as Mesh
-      if (!m.isMesh || !m.name.startsWith('Backdrop')) return
-      const mats = Array.isArray(m.material) ? m.material : [m.material]
-      if (mats.some((x) => x.name === 'TowerWindow')) {
-        m.visible = false
-        return
-      }
-      keepNear(m, KEEP_R)
+      if (m.isMesh && m.name.startsWith('Backdrop') && !(Array.isArray(m.material) ? m.material : [m.material]).some((x) => x.name === 'TowerWindow')) splits.push(m)
     })
+    for (const m of splits) {
+      const farMesh = splitFar(m, 16)
+      const mats = (Array.isArray(farMesh.material) ? farMesh.material : [farMesh.material]) as MeshStandardMaterial[]
+      for (const mt of mats) hazy(mt, FAR_HAZE)
+    }
     scene.traverse((o) => {
       const m = o as Mesh
       if (!m.isMesh) return
@@ -151,7 +165,10 @@ export function LobbyWorld() {
           }
           if (mt.name === 'forest_leaves_02') mt.color.multiply(new Color(0.55, 0.62, 0.45))
           if (mt.name === 'stone_brick_wall_001') mt.color.multiplyScalar(1.9) // бока острова: иначе в сумерках чёрная дыра
-          if (name.startsWith('Backdrop')) hazy(mt)
+          // башни, мосты и скалы фона: дымка по глубине и растворение у камеры (раньше дымка не применялась —
+          // имя куска «Backdrop_N», и туман сцены заливал башни сплошным голубым)
+          if (mt.name === 'TowerWindow') warmWindows(mt)
+          if (name.startsWith('Backdrop') && name !== 'BackdropFar') hazy(mt, mt.name === 'TowerWindow' ? FAR_HAZE : { far: 0.9, low: 0.85 })
         }
       }
     })
