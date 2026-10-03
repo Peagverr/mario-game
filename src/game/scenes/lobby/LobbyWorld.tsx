@@ -65,6 +65,30 @@ void main() {
   gl_FragColor = vec4(color * glow * 2.6, glow);
 }`
 
+const KEEP_R = 16
+
+/** Оставить в меше только треугольники, центр которых ближе r (по горизонтали) к центру острова. */
+function keepNear(m: Mesh, r: number) {
+  const g = m.geometry
+  const pos = g.attributes.position
+  const idx = g.index
+  const n = idx ? idx.count : pos.count
+  const keep: number[] = []
+  const v = new Vector3()
+  for (let i = 0; i < n; i += 3) {
+    let cx = 0
+    let cz = 0
+    for (let k = 0; k < 3; k++) {
+      const vi = idx ? idx.getX(i + k) : i + k
+      v.fromBufferAttribute(pos, vi).applyMatrix4(m.matrixWorld)
+      cx += v.x / 3
+      cz += v.z / 3
+    }
+    if (cx * cx + cz * cz < r * r) for (let k = 0; k < 3; k++) keep.push(idx ? idx.getX(i + k) : i + k)
+  }
+  g.setIndex(keep)
+}
+
 /** Свет фонарей и порталов на камне (вместо точечных источников). */
 /** Список считается при первом показе: LEVELS при загрузке модуля ещё не готов (циклический импорт). */
 const pools = () => [
@@ -76,6 +100,20 @@ export function LobbyWorld() {
   const { scene } = useGLTF(URL)
   const films = useMemo(() => {
     const out: ShaderMaterial[] = []
+    scene.updateMatrixWorld(true)
+    // Старые башни и островки из модели убираем: дальний фон — панорама, средний план — Surroundings.
+    // Они стояли в 55–200 м, при повороте мира камера подлетала к ним, и туман заливал их сплошным голубым.
+    // В тех же кусках модели — стена и скалы самого острова: их оставляем (всё в радиусе KEEP_R).
+    scene.traverse((o) => {
+      const m = o as Mesh
+      if (!m.isMesh || !m.name.startsWith('Backdrop')) return
+      const mats = Array.isArray(m.material) ? m.material : [m.material]
+      if (mats.some((x) => x.name === 'TowerWindow')) {
+        m.visible = false
+        return
+      }
+      keepNear(m, KEEP_R)
+    })
     scene.traverse((o) => {
       const m = o as Mesh
       if (!m.isMesh) return
@@ -113,7 +151,7 @@ export function LobbyWorld() {
           }
           if (mt.name === 'forest_leaves_02') mt.color.multiply(new Color(0.55, 0.62, 0.45))
           if (mt.name === 'stone_brick_wall_001') mt.color.multiplyScalar(1.9) // бока острова: иначе в сумерках чёрная дыра
-          if (name === 'Backdrop') hazy(mt)
+          if (name.startsWith('Backdrop')) hazy(mt)
         }
       }
     })

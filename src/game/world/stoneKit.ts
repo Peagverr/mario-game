@@ -61,15 +61,20 @@ function makeKit() {
     moss: stone('moss', [0.45, 0.52, 0.36]),
   }
 }
-let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial; cliff: MeshStandardMaterial } | null = null
+let far: { rock: MeshStandardMaterial; wall: MeshStandardMaterial; cliff: MeshStandardMaterial; moss: MeshStandardMaterial } | null = null
 /**
  * Те же камень, кладка и скалы для среднего плана (Surroundings): дымка слабее (иначе островки — плоские синие
  * силуэты) и растворение у камеры — при повороте и отдалении камера может подлететь к островку вплотную.
  */
 export function farKit() {
   const k = stoneKit()
-  const mid = { far: 0.55, low: 0.6, rim: 0, nearFade: 26 }
-  return (far ??= { rock: hazy(k.rock.clone(), mid), wall: hazy(k.wall.clone(), mid), cliff: hazy(k.cliff.clone(), mid) })
+  const mid = { far: 0.4, low: 0.55, rim: 0, nearFade: 26 }
+  return (far ??= {
+    rock: hazy(k.rock.clone(), mid),
+    wall: hazy(k.wall.clone(), mid),
+    cliff: hazy(k.cliff.clone(), mid),
+    moss: hazy(k.moss.clone(), mid),
+  })
 }
 /** Материалы мира (создаются один раз). */
 export function stoneKit() {
@@ -148,8 +153,10 @@ export function rockRoot(w: number, d: number, depth: number, seed: number) {
     }
     const t = (v.y + 1) / (1 + TOP) // 0 — остриё снизу, 1 — верх
     const n = noise3(v.clone().multiplyScalar(1.4).add(sv))
-    const r = Math.pow(t, 0.8) * (1 + 0.22 * n)
-    p.setXYZ(i, dx * r * (w / 2), -depth * (1 - t) + n * 0.35 * (1 - t), dz * r * (d / 2))
+    // уступы-пласты: радиус ступеньками по высоте — скала, а не гладкий конус
+    const strata = 1 + 0.08 * Math.sign(Math.sin(t * 9 + seed)) * (1 - t)
+    const r = Math.pow(t, 0.65) * (1 + 0.32 * n) * strata
+    p.setXYZ(i, dx * r * (w / 2), -depth * (1 - t) + n * 0.5 * (1 - t), dz * r * (d / 2))
   }
   g.computeVertexNormals()
   return worldUV(g, TILE.cliff, [seed, 0, seed * 0.5])
