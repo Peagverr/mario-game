@@ -56,7 +56,7 @@ void main() {
   float r = length(vWorld.xz - center.xz);
   float edge = 1.0 - smoothstep(90.0, 170.0, r);
   float alpha = clamp((n - 0.38) * 2.2, 0.0, 1.0) * density * edge;
-  vec3 c = panoSample(vWorld - cameraPosition, 4.0) * (0.9 + 0.35 * n);
+  vec3 c = panoSample(vWorld - cameraPosition, 4.0) * (1.1 + 0.4 * n);
   gl_FragColor = vec4(c, alpha);
 }`
 

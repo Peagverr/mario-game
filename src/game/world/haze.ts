@@ -27,10 +27,10 @@ export function hazy<T extends MeshStandardMaterial>(mt: T): T {
       .replace(
         '#include <fog_fragment>',
         `#ifdef USE_FOG
-          float hz = max(smoothstep(fogNear, fogFar * 2.6, vFogDepth) * 0.88, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * 0.85);
+          float hz = max(smoothstep(fogNear, fogFar * 1.7, vFogDepth) * 0.9, (1.0 - smoothstep(-12.0, -0.5, vHzY)) * 0.85);
           // цвет дымки — из панорамы в том же направлении (размыто): скала тает ровно в тот фон, что за ней
           vec3 wdir = viewToWorld * normalize(-vViewPosition);
-          vec3 hc = panoSample(wdir, 5.0);
+          vec3 hc = panoSample(wdir, 5.0) * 1.25; // та же яркость, что у неба (gain в Sky)
           gl_FragColor.rgb = mix(gl_FragColor.rgb, hc, hz);
         #endif`,
       )

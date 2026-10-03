@@ -35,11 +35,9 @@ const LANTERNS: [number, number, number][] = [
 ]
 /** Лучи солнца падают на остров между арками. */
 const SHAFTS = [
-  { at: [3.6, 0, -1.2] as [number, number, number], length: 26, width: 1.3, seed: 1 },
-  { at: [6.8, 0, 1.8] as [number, number, number], length: 24, width: 1.6, seed: 2 },
-  { at: [-1.2, 0, -2.6] as [number, number, number], length: 28, width: 1.0, seed: 3 },
-  { at: [1.2, 0, 2.6] as [number, number, number], length: 22, width: 1.4, seed: 4 },
-  { at: [-5.5, 0, 1.0] as [number, number, number], length: 24, width: 1.2, seed: 5 },
+  { at: [3.6, 0, -1.2] as [number, number, number], length: 24, width: 0.9, seed: 1 },
+  { at: [6.8, 0, 1.8] as [number, number, number], length: 22, width: 1.1, seed: 2 },
+  { at: [-1.2, 0, -2.6] as [number, number, number], length: 26, width: 0.8, seed: 3 },
 ]
 const PORTALS: [number, number][] = [
   [-5.2, -3.6],

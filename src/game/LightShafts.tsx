@@ -79,7 +79,7 @@ export function LightShafts({ shafts, tilt = 0.55 }: { shafts: Shaft[]; tilt?: n
       m.uniforms.time.value = clock.elapsedTime
       // Лучи светлее солнца у горизонта: красный закатный цвет в дымке читается как грязь.
       m.uniforms.color.value.copy(atmo.sunColor).lerp(WARM, 0.7).multiplyScalar(0.8)
-      m.uniforms.strength.value = (0.75 + atmo.sunGlow * 0.25) * (runtime.lowQuality ? 0.8 : 1)
+      m.uniforms.strength.value = (0.5 + atmo.sunGlow * 0.3) * (runtime.lowQuality ? 0.8 : 1)
     }
   })
 
