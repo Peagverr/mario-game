@@ -18,6 +18,8 @@ export const spirit = {
   guideSeq: 0,
   celebrateSeq: 0,
   alertSeq: 0,
+  /** Сколько света вернулось к духу (сюжет: каждый пройденный уровень — светлее). 1 — обычный вид. */
+  light: 1,
 }
 
 export function spiritAppear() {
@@ -47,4 +49,9 @@ export function spiritCelebrate() {
 
 export function spiritAlert() {
   spirit.alertSeq++
+}
+
+/** Сколько света у духа: 1 — обычный вид, меньше — тусклее, больше — ярче. */
+export function spiritLight(v: number) {
+  spirit.light = v
 }

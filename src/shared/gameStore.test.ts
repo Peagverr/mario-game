@@ -75,3 +75,20 @@ describe('таймер уровня и пауза', () => {
     expect(runSeconds(g())).toBe(0)
   })
 })
+
+describe('пройденные уровни (сюжет: свет духа и прощание)', () => {
+  it('финиш уровня запоминает его один раз; «Заново» и переход в лобби не стирают', () => {
+    useGame.setState({ completed: [], sceneId: 'level1' })
+    g().startRun()
+    g().finishRun()
+    g().restart()
+    g().startRun()
+    g().finishRun()
+    expect(g().completed).toEqual(['level1'])
+    g().goToScene('level3')
+    g().startRun()
+    g().finishRun()
+    g().goToScene('lobby')
+    expect(g().completed).toEqual(['level1', 'level3'])
+  })
+})

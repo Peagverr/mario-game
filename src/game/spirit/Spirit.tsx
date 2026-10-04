@@ -122,6 +122,8 @@ export function Spirit() {
       alertT: 99,
       heroRising: false,
       voice: 0,
+      /** Свет духа (сюжет), плавно догоняет spirit.light. */
+      light: spirit.light,
       mouth: 0,
       lookX: 0,
       lookY: 0,
@@ -345,7 +347,8 @@ export function Spirit() {
     // Свечение: дыхание с голосом, вспышка в празднике, мерцание у цели.
     if (guiding && st.pos.distanceTo(st.target) < 0.6) st.pulseT += dt
     const pulse = guiding ? 0.18 * Math.max(0, Math.sin(st.pulseT * 4.2)) : 0
-    u.uGlow.value = 1 + 0.25 * st.voice + (ct < 0.4 ? 0.35 * (1 - ct / 0.4) : 0) + pulse
+    st.light += (spirit.light - st.light) * (1 - Math.exp(-1.5 * dt))
+    u.uGlow.value = st.light * (1 + 0.25 * st.voice) + (ct < 0.4 ? 0.35 * (1 - ct / 0.4) : 0) + pulse
     // Камера — в координатах духа (луч считается там).
     inv.copy(g.matrixWorld).invert()
     ;(u.uCam.value as Vector3).copy(camPos).applyMatrix4(inv)

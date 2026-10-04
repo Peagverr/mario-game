@@ -32,6 +32,8 @@ type GameState = {
   finishedAt: number
   falls: number
   stats: GestureStats
+  /** Какие уровни пройдены за эту сессию (до финиша) — сюжет: каждый возвращает духу свет. */
+  completed: SceneId[]
 
   setPhase: (phase: Phase) => void
   /** Поставить игру на паузу (из игры). */
@@ -68,6 +70,7 @@ export const useGame = create<GameState>((set) => ({
   finishedAt: 0,
   falls: 0,
   stats: emptyStats(),
+  completed: [],
 
   setPhase: (phase) =>
     set((s) => {
@@ -90,7 +93,12 @@ export const useGame = create<GameState>((set) => ({
       stats: { ...s.stats, errors: { ...s.stats.errors, [code]: (s.stats.errors[code] ?? 0) + 1 } },
     })),
   startRun: () => set({ phase: 'playing', startedAt: performance.now(), finishedAt: 0 }),
-  finishRun: () => set({ phase: 'results', finishedAt: performance.now() }),
+  finishRun: () =>
+    set((s) => ({
+      phase: 'results',
+      finishedAt: performance.now(),
+      completed: s.completed.includes(s.sceneId) ? s.completed : [...s.completed, s.sceneId],
+    })),
   restart: () =>
     set((s) => ({
       phase: s.sceneId === 'lobby' ? 'playing' : 'countdown',

@@ -45,6 +45,8 @@ export function HUD() {
   const total = useGame((s) => s.starsTotal)
   const secrets = useGame((s) => s.secretsFound)
   const secretsTotal = useGame((s) => s.secretsTotal)
+  // Сюжет: сколько осколков света возвращено (пройдено уровней).
+  const light = useGame((s) => s.completed.length)
   const [time, setTime] = useState(0)
   const [grabbing, setGrabbing] = useState(false)
 
@@ -59,7 +61,11 @@ export function HUD() {
   return (
     <div className="hud">
       {sceneId === 'lobby' ? (
-        <div className="hud__pill hud__pill--lobby">Лобби — зайди в портал, чтобы начать уровень</div>
+        <div className="hud__pill hud__pill--lobby">
+          <span className="hud__star" aria-hidden>✦</span> Свет <b>{light}</b>
+          <span className="hud__dim">/ {LEVELS_TOTAL}</span>
+          {light < LEVELS_TOTAL ? ' — зайди в портал и верни осколок' : ' — рассвет! Можно пройти ещё раз'}
+        </div>
       ) : (
         <>
           <div className="hud__pill">
@@ -87,6 +93,9 @@ export function HUD() {
     </div>
   )
 }
+
+/** Уровней (осколков света) всего. */
+const LEVELS_TOTAL = 3
 
 /** «Круг больше / меньше» — во столько раз за нажатие. */
 const RING_STEP = 1.15

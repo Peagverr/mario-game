@@ -28,7 +28,9 @@ export function Hints() {
     let lastSub = ''
     const tick = () => {
       raf = requestAnimationFrame(tick)
-      const sub = voiceNow.id.startsWith('hint.') || useGame.getState().phase === 'tutorial' ? '' : voiceNow.text
+      // Сюжетные реплики (story.*) — субтитрами всегда, и в обучении: это рассказ, а не инструкция с карточки.
+      const story = voiceNow.id.startsWith('story.')
+      const sub = !story && (voiceNow.id.startsWith('hint.') || useGame.getState().phase === 'tutorial') ? '' : voiceNow.text
       if (sub !== lastSub) {
         lastSub = sub
         setSubtitle(sub)

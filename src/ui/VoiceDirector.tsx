@@ -26,6 +26,8 @@ const LEVEL_INTRO: Partial<Record<SceneId, string[]>> = {
   level3: ['rotate.intro'],
 }
 
+const ALL_LEVELS: SceneId[] = ['level1', 'level2', 'level3']
+
 const story = (id: string, waitMs = 6000) => say(id, { priority: PRIORITY.story, waitMs })
 
 export function VoiceDirector() {
@@ -37,16 +39,29 @@ export function VoiceDirector() {
       if (s.runId !== p.runId) clearVoice()
 
       if (s.phase !== p.phase) {
-        if (s.phase === 'tutorial' && (p.phase === 'start' || p.phase === 'loading')) story('awake.hello')
-        // Обучение закончилось в лобби — к порталам.
-        if (s.phase === 'playing' && p.phase === 'tutorial' && s.sceneId === 'lobby') story('short.lobby')
+        if (s.phase === 'tutorial' && (p.phase === 'start' || p.phase === 'loading')) {
+          story('awake.hello')
+          // Сюжет — в первые секунды: мир застрял в ночи. Дальше «Я — Окно…» говорит первый шаг обучения.
+          // (В очереди голоса не больше трёх реплик — больше сюда не ставить.)
+          story('story.night', 12000)
+        }
+        // Обучение закончилось в лобби — к порталам: три осколка света (если ещё не все возвращены).
+        if (s.phase === 'playing' && p.phase === 'tutorial' && s.sceneId === 'lobby') {
+          story(ALL_LEVELS.every((id) => s.completed.includes(id)) ? 'short.lobby' : 'story.portals', 8000)
+        }
         if (s.phase === 'playing' && p.phase === 'countdown') LEVEL_INTRO[s.sceneId]?.forEach((id) => story(id, 8000))
         // Пауза из-за камеры — про неё скажет подсказка «камера», «пауза» тут лишняя.
         if (s.phase === 'paused' && p.phase === 'playing' && s.pauseReason === 'menu') say('short.pause', { waitMs: 1500 })
         if (s.phase === 'results') {
           clearVoice()
-          story('finale.done')
-          story('finale.results', 9000)
+          // Сюжет: уровень пройден впервые — вернулся осколок света; все три — рассвет и прощание.
+          // В очереди голоса не больше трёх реплик: в финале всей истории «Рассвет» звучит вместо «Финиш».
+          const fresh = s.completed.length > p.completed.length
+          const dawn = fresh && ALL_LEVELS.every((id) => s.completed.includes(id))
+          story(dawn ? 'story.dawn' : 'finale.done')
+          if (fresh && !dawn) story('story.shard', 9000)
+          story('finale.results', 14000)
+          if (dawn) story('finale.bye', 20000)
         }
       }
       if (s.phase !== 'playing' || s.runId !== p.runId) return

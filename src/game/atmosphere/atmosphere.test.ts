@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { approachTime, KEYS, RESULTS_TIME, SCENE_TIME, sampleAtmo } from './atmosphere'
+import { approachTime, KEYS, lobbyTime, RESULTS_TIME, SCENE_TIME, sampleAtmo } from './atmosphere'
 
 const brightness = (c: { r: number; g: number; b: number }) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
 
@@ -45,5 +45,15 @@ describe('время суток', () => {
     expect(t - 0.1).toBeLessThan(0.25 * 0.7)
     for (let i = 0; i < 180; i++) t = approachTime(t, 0.35, 1 / 60)
     expect(0.35 - t).toBeLessThan(0.01)
+  })
+})
+
+describe('сюжет: лобби светлеет с каждым возвращённым осколком', () => {
+  it('ночь → светлее с каждым пройденным уровнем → рассвет после трёх', () => {
+    const t = [0, 1, 2, 3].map(lobbyTime)
+    expect(t[0]).toBe(SCENE_TIME.lobby)
+    for (let i = 1; i < t.length; i++) expect(t[i]).toBeGreaterThan(t[i - 1])
+    expect(t[3]).toBe(RESULTS_TIME)
+    expect(lobbyTime(7)).toBe(RESULTS_TIME)
   })
 })

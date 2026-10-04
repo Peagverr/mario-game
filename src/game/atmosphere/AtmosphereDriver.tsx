@@ -3,7 +3,7 @@ import { Fog, Vector3 } from 'three'
 import { runtime } from '../runtime'
 import { useGame } from '../../shared/gameStore'
 import { panoColorAt } from '../world/skyPano'
-import { approachTime, createAtmo, RESULTS_TIME, SCENE_TIME, sampleAtmo } from './atmosphere'
+import { approachTime, createAtmo, lobbyTime, RESULTS_TIME, SCENE_TIME, sampleAtmo } from './atmosphere'
 
 /**
  * Текущая атмосфера — её читают небо, свет и облака каждый кадр.
@@ -24,6 +24,7 @@ function targetTime() {
   if (FORCED_T !== null) return FORCED_T
   const g = useGame.getState()
   if (g.phase === 'results') return RESULTS_TIME
+  if (g.sceneId === 'lobby') return lobbyTime(g.completed.length)
   return SCENE_TIME[g.sceneId as keyof typeof SCENE_TIME] ?? SCENE_TIME.lobby
 }
 

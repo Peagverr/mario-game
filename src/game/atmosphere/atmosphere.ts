@@ -122,6 +122,15 @@ export const KEYS: AtmoKey[] = [
 export const SCENE_TIME = { lobby: 0.1, level1: 0.35, level2: 0.6, level3: 0.85 } as const
 export const RESULTS_TIME = 1
 
+/**
+ * Сюжет: лобби светлеет с каждым возвращённым осколком света (пройденным уровнем).
+ * Ночь → вечер → перед рассветом → рассвет, когда пройдены все три.
+ */
+const LOBBY_TIME_BY_LIGHT = [SCENE_TIME.lobby, 0.35, 0.6, 1] as const
+export function lobbyTime(light: number) {
+  return LOBBY_TIME_BY_LIGHT[Math.max(0, Math.min(LOBBY_TIME_BY_LIGHT.length - 1, light))]
+}
+
 /** Солнце встаёт с этой стороны (градусы от «вглубь экрана» по часовой): позади островов справа — контражур и тёплое зарево справа, как на референсе. */
 const SUN_AZIMUTH = 38
 

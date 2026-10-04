@@ -120,11 +120,26 @@ function startTicking() {
   tick()
 }
 
+/** Сколько мс читать реплику без звука: ~14 знаков в секунду, не меньше 2 с. */
+export function readMs(text: string) {
+  return Math.max(2000, text.length * 70)
+}
+
 async function play(id: string) {
   const ctx = audioContext()
   const buf = ctx && (await load(id))
   if (!ctx || !buf) {
-    queue.done(performance.now())
+    // Реплику ещё не озвучили (или звук не загрузился) — показываем её субтитром столько, сколько нужно прочитать.
+    const text = TEXT.get(id) ?? ''
+    voiceNow.id = id
+    voiceNow.text = text
+    setTimeout(() => {
+      if (voiceNow.id === id) {
+        voiceNow.id = ''
+        voiceNow.text = ''
+      }
+      queue.done(performance.now())
+    }, readMs(text))
     return
   }
   const src = ctx.createBufferSource()

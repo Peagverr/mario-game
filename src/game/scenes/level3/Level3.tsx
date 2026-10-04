@@ -15,6 +15,7 @@ import { Towers } from '../../world/Towers'
 import { LightShafts } from '../../LightShafts'
 import { Goal, Stars } from '../level1/Collectibles'
 import { Platforms } from '../level1/Platforms'
+import { CrumblingIsland } from './Climax'
 import type { Platform } from '../level1/levelData'
 
 /**
@@ -61,6 +62,8 @@ const SHAFTS = [
   { at: [6.5, 0, 0] as [number, number, number], length: 20, width: 0.8, seed: 3 },
 ]
 const GLOW = new Color('#ffb84d')
+/** Какой остров рушится: третий, перед последним мостом (BRIDGES[CRUMBLING] ведёт с него на последний). */
+const CRUMBLING = 2
 
 /** Мост твёрдый, если поворот камеры отличается от нужного меньше чем на столько. */
 const SNAP = MathUtils.degToRad(12)
@@ -76,7 +79,9 @@ export function Level3() {
   useEffect(() => useGame.getState().setStarsTotal(STARS.length), [])
   return (
     <>
-      <Platforms platforms={PLATFORMS} />
+      {/* Третий остров — рушится (кульминация, Climax.tsx): коллайдер тот же, вид отдельно. */}
+      <Platforms platforms={PLATFORMS.filter((_, i) => i !== CRUMBLING)} />
+      <CrumblingIsland p={PLATFORMS[CRUMBLING]} safe={PLATFORMS[CRUMBLING + 1]} bridge={BRIDGES[CRUMBLING]} />
       {BRIDGES.map((b, i) => (
         <GhostBridge key={i} b={b} />
       ))}

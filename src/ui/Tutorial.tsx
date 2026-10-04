@@ -32,6 +32,9 @@ type StepCtx = { acc: number; start: { jumpSeq: number; yaw: number; pitch: numb
 /** Голограмма руки в обучении выключена: вместо неё будет дух-компаньон (src/game/spirit). Код и запись жестов (`?record`) остаются. */
 const SHOW_HOLO_HAND = false
 
+/** Вступление (сюжет) перед первым шагом — не дольше этого (мс). */
+const INTRO_MAX_MS = 14000
+
 /** Дольше этого обучение не ждёт, пока Окно договорит (мс). */
 const VOICE_WAIT_MAX_MS = 5000
 /** Столько держать ладонь в центре джойстика, чтобы шаг засчитался: мимолётное касание — не «понял». */
@@ -53,7 +56,7 @@ const STEPS: Step[] = [
       hold((control.joystick.armed && control.joystick.sector < 0) || control.devKeyboard, c, dt, PALM_HOLD_MS),
     holo: 'palm-raise',
     // «Камера включена. Я тебя вижу» звучит при входе в обучение (VoiceDirector), затем «Я — Окно…», затем инструкция.
-    voicePre: 'awake.intro',
+    voicePre: 'story.window',
     voice: 'walk.raise',
     voiceDone: 'walk.contact',
   },
@@ -81,7 +84,7 @@ const STEPS: Step[] = [
     text: 'Левый кулак держит мир: веди его куда угодно — мир крутится и наклоняется. Уведи дальше бирюзового круга — мир будет крутиться сам. Кулак к камере или от неё — приблизить или отдалить. Разжал — отпустил.',
     check: (c) =>
       Math.min(1, Math.max(Math.abs(control.view.yaw - c.start.yaw) / 0.6, Math.abs(control.view.pitch - c.start.pitch) / 0.3)),
-    // Своей реплики «сожми левый кулак» пока нет — голос только хвалит, когда получилось.
+    // rotate.show («Сожми левый кулак и веди в сторону») — подключить после замены озвучки: в mp3 старая фраза про ладонь.
     voiceDone: 'short.clean',
   },
   {
@@ -119,14 +122,23 @@ export function Tutorial() {
     if (SHOW_HOLO_HAND && step.holo) showHolo(step.holo)
     else hideHolo()
     // Шаг уже выполнили, пока голос договаривал прошлое, — инструкция к нему больше не нужна.
-    if (step.voicePre) say(step.voicePre, { priority: PRIORITY.story, waitMs: 6000 })
-    if (step.voice) say(step.voice, { priority: PRIORITY.story, waitMs: 6000, valid: () => current.current === step })
+    // Первый шаг ждёт дольше: перед ним Окно рассказывает, что случилось с миром (VoiceDirector, story.*).
+    const wait = step === STEPS[0] ? 25000 : 6000
+    if (step.voicePre) say(step.voicePre, { priority: PRIORITY.story, waitMs: wait })
+    if (step.voice) say(step.voice, { priority: PRIORITY.story, waitMs: wait, valid: () => current.current === step })
     let raf = 0
     let last = performance.now()
     let frame = 0
+    // Первый шаг не засчитывается, пока Окно рассказывает вступление (сюжет): иначе «Есть контакт» встаёт в очередь
+    // голоса, и вступление из неё вылетает (больше трёх реплик очередь не держит). Ждём не дольше INTRO_MAX_MS.
+    const introUntil = step === STEPS[0] ? performance.now() + INTRO_MAX_MS : 0
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const now = performance.now()
+      if (now < introUntil && voiceBusy()) {
+        last = now
+        return
+      }
       const p = step.check(ctx.current, now - last)
       last = now
       if (frame++ % 4 === 0) setProgress(p)

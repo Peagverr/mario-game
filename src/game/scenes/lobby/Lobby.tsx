@@ -54,6 +54,8 @@ export function Lobby() {
 function Portal({ position, level, placeholder }: { position: [number, number, number]; level?: LevelInfo; placeholder: string }) {
   const color = level?.color ?? '#b9bfd3'
   const best = useMemo(() => (level ? bestRecord(level.id) : undefined), [level])
+  // Сюжет: уровень пройден — его осколок света возвращён.
+  const lit = useGame((s) => !!level && s.completed.includes(level.id))
   const sign = useRef<HTMLDivElement>(null)
   // Таблички читаются, только когда порталы видно спереди: повернул мир боком — они налезали бы друг на друга.
   useFrame(() => {
@@ -87,9 +89,10 @@ function Portal({ position, level, placeholder }: { position: [number, number, n
         />
       )}
       <Html center position={[0, 4.7, 0.3]} distanceFactor={42} zIndexRange={[10, 0]}>
-        <div ref={sign} className={`portal-sign ${level ? '' : 'is-locked'}`}>
+        <div ref={sign} className={`portal-sign ${level ? '' : 'is-locked'} ${lit ? 'is-lit' : ''}`}>
           <b>{level?.title ?? placeholder}</b>
           <span>{level ? level.feature : 'скоро'}</span>
+          {lit && <span className="portal-sign__lit">✦ свет возвращён</span>}
           {best && (
             <span className="portal-sign__best">
               рекорд {best.score} · ★{best.stars}

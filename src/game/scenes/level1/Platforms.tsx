@@ -55,7 +55,7 @@ function GrassRing({ w, d, seed, inner = 8 }: { w: number; d: number; seed: numb
 }
 
 /** Остров: каменные плиты сверху, кладка по бокам, скала-«корень» снизу, трава по краю. */
-function IslandMesh({ p }: { p: Platform }) {
+export function IslandMesh({ p }: { p: Platform }) {
   const kit = stoneKit()
   const seed = seedOf(p)
   const geo = useMemo(() => {
@@ -153,7 +153,7 @@ function SlabMesh({ p }: { p: Platform }) {
 }
 
 /** Коллайдер под платформой + регистрация чекпоинта. Деревья — тоже препятствия. */
-function PlatformColliders({ p }: { p: Platform }) {
+export function PlatformColliders({ p }: { p: Platform }) {
   const col = useRef<RapierCollider>(null)
   useEffect(() => {
     const c = col.current
