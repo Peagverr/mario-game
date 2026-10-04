@@ -10,7 +10,7 @@ import {
   scaleGrabSpeed,
 } from '../input/tracker'
 import { control } from '../shared/controlState'
-import { useGame, runSeconds } from '../shared/gameStore'
+import { lightCount, useGame, runSeconds } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
 
 /** Отсчёт 3-2-1 перед стартом. */
@@ -46,7 +46,7 @@ export function HUD() {
   const secrets = useGame((s) => s.secretsFound)
   const secretsTotal = useGame((s) => s.secretsTotal)
   // Сюжет: сколько осколков света возвращено (пройдено уровней).
-  const light = useGame((s) => s.completed.length)
+  const light = useGame((s) => lightCount(s.completed))
   const [time, setTime] = useState(0)
   const [grabbing, setGrabbing] = useState(false)
 

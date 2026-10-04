@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useGame } from '../../shared/gameStore'
+import { lightCount, useGame } from '../../shared/gameStore'
 import { Spirit } from './Spirit'
 import { spiritAppear, spiritCelebrate, spiritFollow, spiritLight, spiritVanish } from './spiritState'
 
@@ -23,13 +23,13 @@ export function SpiritDirector() {
       else if (phase === 'start') spiritVanish()
     }
     sync(useGame.getState().phase)
-    spiritLight(lightFor(useGame.getState().completed.length))
+    spiritLight(lightFor(lightCount(useGame.getState().completed)))
     return useGame.subscribe((s, prev) => {
       if (s.phase !== prev.phase) sync(s.phase)
       if (s.sceneId !== prev.sceneId || s.runId !== prev.runId) spiritFollow()
       if (s.starsCollected > prev.starsCollected) spiritCelebrate()
       if (s.phase === 'results' && prev.phase !== 'results') spiritCelebrate()
-      if (s.completed.length !== prev.completed.length) spiritLight(lightFor(s.completed.length))
+      if (s.completed.length !== prev.completed.length) spiritLight(lightFor(lightCount(s.completed)))
     })
   }, [])
   return <Spirit />

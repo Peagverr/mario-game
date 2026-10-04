@@ -24,7 +24,7 @@ import type { Platform } from '../level1/levelData'
  * Мягкие края не дают шагнуть на несобранный мост — герой подождёт на краю.
  */
 
-type Bridge = {
+export type Bridge = {
   /** Начало и конец моста (центр верхней поверхности), высота — top. */
   from: [number, number]
   to: [number, number]
@@ -102,7 +102,7 @@ export function Level3() {
   )
 }
 
-function GhostBridge({ b }: { b: Bridge }) {
+export function GhostBridge({ b }: { b: Bridge }) {
   const collider = useRef<RapierCollider>(null)
   const planks = useRef<(Mesh | null)[]>([])
   const sign = useRef<HTMLDivElement>(null)

@@ -24,6 +24,7 @@ const LEVEL_INTRO: Partial<Record<SceneId, string[]>> = {
   level1: ['jump.cliff', 'jump.teach'],
   level2: ['window.intro', 'window.peek'],
   level3: ['rotate.intro'],
+  prologue: ['story.night'],
 }
 
 const ALL_LEVELS: SceneId[] = ['level1', 'level2', 'level3']
@@ -72,7 +73,8 @@ export function VoiceDirector() {
         else say(s.secretsFound % 2 ? 'short.exact' : 'short.clean', { waitMs: 1500 })
       } else if (s.starsCollected > p.starsCollected) {
         // Обычные звёзды: голосом только первую и последнюю — иначе голос надоест.
-        if (s.starsCollected === 1) say('short.star', { waitMs: 1200 })
+        // В прологе первый огонёк объясняет сам уровень («Огоньки помнят дорогу») — «Плюс одна» там лишняя.
+        if (s.starsCollected === 1 && s.sceneId !== 'prologue') say('short.star', { waitMs: 1200 })
         else if (s.starsTotal > 0 && s.starsCollected === s.starsTotal) say('short.clean', { waitMs: 1500 })
       }
 

@@ -356,3 +356,9 @@ body {
 .holo-rec__big { font: 800 40px var(--font-head); }
 .holo-rec__big.is-rec { color: var(--coral); }
 .hud__pill--grab { white-space: nowrap; font: 700 16px var(--font-head); background: var(--teal); color: #fff; animation: pop-in 0.25s ease-out; }
+
+/* Пролог: огонёк у края экрана — туда, где осколок света */
+.goal-beacon { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; pointer-events: none; z-index: 5;
+  background: radial-gradient(circle, #fff6d0 0%, #ffd76a 40%, rgba(255, 207, 107, 0) 72%); box-shadow: 0 0 22px 8px rgba(255, 207, 107, 0.55);
+  animation: beacon-pulse 1.4s ease-in-out infinite; }
+@keyframes beacon-pulse { 50% { transform: scale(1.35); opacity: 0.75; } }

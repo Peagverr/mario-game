@@ -2,7 +2,10 @@ import { create } from 'zustand'
 import type { HintCode, Phase } from './controlState'
 
 /** Какие сцены есть (полный реестр — в src/game/scenes/index.ts). */
-export type SceneId = 'lobby' | 'level1' | 'level2' | 'level3'
+export type SceneId = 'lobby' | 'level1' | 'level2' | 'level3' | 'prologue'
+
+/** Сюжет: сколько осколков света возвращено — пройдено уровней из лобби (пролог не считается). */
+export const lightCount = (completed: SceneId[]) => completed.filter((id) => id === 'level1' || id === 'level2' || id === 'level3').length
 
 /** Статистика жестов за забег — для экрана итогов и «точности». */
 export type GestureStats = {

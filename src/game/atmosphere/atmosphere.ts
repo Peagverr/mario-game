@@ -122,6 +122,9 @@ export const KEYS: AtmoKey[] = [
 export const SCENE_TIME = { lobby: 0.1, level1: 0.35, level2: 0.6, level3: 0.85 } as const
 export const RESULTS_TIME = 1
 
+/** Сюжетный уровень может сам вести время суток (null — по сцене, как обычно). Уровень сбрасывает в null, уходя. */
+export const storyTime = { t: null as number | null }
+
 /**
  * Сюжет: лобби светлеет с каждым возвращённым осколком света (пройденным уровнем).
  * Ночь → вечер → перед рассветом → рассвет, когда пройдены все три.

@@ -16,6 +16,14 @@ function explain(e: unknown): string {
   return 'Не удалось загрузить нейросети распознавания. Проверь интернет и обнови страницу.'
 }
 
+/** Для теста: ?level=prologue — сразу сюжетный уровень, без обучения. */
+const DIRECT_LEVEL = new URLSearchParams(location.search).get('level') === 'prologue' ? 'prologue' : null
+
+function begin() {
+  if (DIRECT_LEVEL) useGame.getState().goToScene(DIRECT_LEVEL)
+  else useGame.getState().setPhase('tutorial')
+}
+
 export function StartScreen() {
   const [state, setState] = useState<State>({ kind: 'idle' })
 
@@ -24,7 +32,7 @@ export function StartScreen() {
     preloadVoice()
     try {
       await startTracking((step) => setState({ kind: 'loading', step }))
-      useGame.getState().setPhase('tutorial')
+      begin()
     } catch (e) {
       console.error(e)
       setState({ kind: 'error', text: explain(e) })
@@ -35,7 +43,7 @@ export function StartScreen() {
     unlockAudio()
     preloadVoice()
     enableDevKeyboard()
-    useGame.getState().setPhase('tutorial')
+    begin()
   }
 
   return (
