@@ -49,8 +49,8 @@ const FACE_FRESH_MS = 600
 /** Две раскрытые ладони столько держать, чтобы открылось меню. */
 const MENU_HOLD_MS = 800
 const JUMP_COOLDOWN_MS = 250
-/** Место и размер круга запоминаются в браузере: калибровка в обучении и кнопки в меню. */
-const PALM_SETTINGS_KEY = 'okno.palm.v1'
+/** Место и размер круга запоминаются в браузере (кнопки в меню). v1 — старый круг у лица, его не берём. */
+const PALM_SETTINGS_KEY = 'okno.palm.v2'
 /** Чувствительность левого кулака (меню «Поворот мира»). */
 const GRAB_SETTINGS_KEY = 'okno.grab.v1'
 const GRAB_SPEED_LIMITS = [0.5, 2] as const
@@ -80,7 +80,7 @@ const headFilter = new OneEuro3(1.6, 3)
 // Лицо для кольца ладони: сглажено сильнее, чтобы кольцо в мини-окне не дрожало.
 const faceAnchorFilter = new OneEuro3(1.2, 0.3)
 const hintFilter = new HintFilter()
-/** Ладонь у лица: кольцо-джойстик справа от лица (логика — в palmJoystick.ts). */
+/** Ладонь-джойстик: круг в кадре справа внизу (логика — в palmJoystick.ts). */
 const palmJoy = new PalmJoystick()
 /** Левый кулак держит мир: поворот, наклон и приближение (логика — в worldGrab.ts). */
 const worldGrab = new WorldGrab()
@@ -93,7 +93,7 @@ const s = {
   faceOval: null as FaceOval | null,
   faceSpeed: 0,
   faceOvalAt: 0,
-  /** Первые шаги обучения: кольцо следует за ладонью, герой стоит. */
+  /** «Поставить круг заново» в меню: кольцо следует за ладонью, герой стоит. */
   calibrating: false,
   /** С какого момента правая рука видна, но ещё не заходила в круг (0 — зашла или руки нет). */
   palmUnarmedSince: 0,
@@ -129,7 +129,7 @@ const s = {
 
 export type TrackerStatus = 'camera' | 'models' | 'ready'
 
-/** Калибровка круга началась (обучение или «Поставить круг заново»): круг следует за ладонью, герой стоит. */
+/** «Поставить круг заново» началось: круг следует за ладонью, герой стоит. */
 export function beginJoystickCalibration() {
   s.calibrating = true
 }
@@ -139,13 +139,12 @@ export function endJoystickCalibration() {
   s.calibrating = false
 }
 
-/** «Здесь удобно держать ладонь» — круг встанет туда относительно лица и запомнится. */
+/** «Здесь удобно держать ладонь» — круг встанет туда в кадре и запомнится. */
 export function calibrateJoystick() {
   s.calibrating = false
   const r = control.hands.right
-  const f = faceAnchor(performance.now())
-  if (r && f) {
-    palmJoy.calibrate(toSquare(r.palm), f)
+  if (r) {
+    palmJoy.calibrate(toSquare(r.palm), videoAspect())
     savePalmSettings()
   }
 }
@@ -163,9 +162,9 @@ export function palmRingScale() {
 }
 
 function savePalmSettings() {
-  const { offsetX, offsetY, dead, full } = palmJoy.params
+  const { anchorX, anchorY, dead, full } = palmJoy.params
   try {
-    localStorage.setItem(PALM_SETTINGS_KEY, JSON.stringify({ offsetX, offsetY, dead, full }))
+    localStorage.setItem(PALM_SETTINGS_KEY, JSON.stringify({ anchorX, anchorY, dead, full }))
   } catch {
     // Хранилище недоступно — настройки просто не запомнятся.
   }
@@ -471,7 +470,7 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
     if (!s.onlyLeftSince) s.onlyLeftSince = t
   } else s.onlyLeftSince = 0
 
-  // Меню — раньше ходьбы: пока держишь две ладони (меню открывается), ладонь у лица не ведёт героя.
+  // Меню — раньше ходьбы: пока держишь две ладони (меню открывается), ладонь-джойстик не ведёт героя.
   applyMenu(found.length === 2 ? [next.left, next.right] : [], t)
   const phase = useGame.getState().phase
   const playable = phase === 'playing' || phase === 'tutorial' || phase === 'countdown'
@@ -483,15 +482,17 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
 }
 
 /**
- * Ладонь у лица (идея Абзала): справа от лица — кольцо, его видно в мини-окне камеры.
+ * Ладонь-джойстик: круг в кадре справа внизу, на экране — большой джойстик в правом нижнем углу.
  * Пока ладонь не побывала в центре — герой стоит; вышла из центра — идёт туда. Подробно — в palmJoystick.ts.
  * suspended — меню открыто или сейчас не игра; menuGesture — две ладони раскрыты, меню открывается.
  */
 function applyPalm(r: HandState | null, t: number, suspended: boolean, menuGesture: boolean) {
+  const aspect = videoAspect()
   const st = palmJoy.update({
     t,
     palm: r ? toSquare(r.palm) : null,
     face: faceAnchor(t),
+    aspect,
     suspended,
     calibrating: s.calibrating,
     holdStill: menuGesture,
@@ -499,12 +500,13 @@ function applyPalm(r: HandState | null, t: number, suspended: boolean, menuGestu
   control.move.x = st.move.x
   control.move.y = st.move.y
   const j = control.joystick
-  const aspect = videoAspect()
   j.centerX = st.center.x / aspect
   j.centerY = st.center.y
   j.radius = st.full
   j.deadRadius = st.dead
-  j.faceAnchored = st.faceAnchored
+  j.stickX = st.stick?.x ?? 0
+  j.stickY = st.stick?.y ?? 0
+  j.stickVisible = !!st.stick
   j.armed = st.armed
   j.calibrating = s.calibrating && !suspended
   // В мини-окне кольцо прячем и в меню, и пока оно открывается.

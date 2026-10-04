@@ -26,6 +26,9 @@
   --cam-w: 320px;
   --cam-h: 240px;
   --corner-w: calc(var(--cam-w) + 34px);
+  /* Большой джойстик справа внизу и место, которое он занимает с отступом: подсказки на него не заезжают. */
+  --pad-size: 200px;
+  --pad-w: calc(var(--pad-size) + 32px);
 }
 
 * { box-sizing: border-box; }
@@ -201,7 +204,7 @@ body {
   padding: 3px 10px; font-size: 13px;
 }
 
-/* ---------- Мини-окно камеры (для ладони у лица — ещё и пульт) ---------- */
+/* ---------- Мини-окно камеры: скелет, лицо и где в кадре круг-джойстик ---------- */
 .cam-preview {
   position: absolute; left: 16px; bottom: 16px; z-index: var(--z-hud);
   background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink);
@@ -214,9 +217,24 @@ body {
 .tag--left { background: var(--teal); }
 .cam-preview__fps { font-size: 11px; color: var(--ink-soft); margin-left: auto; align-self: center; }
 
-/* ---------- Подсказки «режима ошибки»: правее угла с камерой, на него не заезжают ---------- */
+/* ---------- Большой джойстик правой ладони: правый нижний угол ---------- */
+.palm-pad {
+  position: absolute; right: 16px; bottom: 16px; z-index: var(--z-hud); width: var(--pad-size);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  pointer-events: none; transition: opacity 0.2s;
+}
+.palm-pad.is-hidden { opacity: 0; }
+.palm-pad canvas { display: block; width: var(--pad-size); height: var(--pad-size); }
+.palm-pad__caption {
+  background: var(--paper); border: 3px solid var(--ink); border-radius: 999px; box-shadow: 0 3px 0 var(--ink);
+  padding: 4px 14px; font: 700 14px var(--font-head); color: var(--ink); white-space: nowrap;
+}
+.palm-pad__caption.is-wait { background: var(--star); }
+.palm-pad__caption.is-go { background: var(--coral); color: #fff; }
+
+/* ---------- Подсказки «режима ошибки»: между углом с камерой и джойстиком, на них не заезжают ---------- */
 .hints {
-  position: absolute; bottom: 24px; left: calc(var(--corner-w) + 16px); right: 16px; z-index: var(--z-hints);
+  position: absolute; bottom: 24px; left: calc(var(--corner-w) + 16px); right: var(--pad-w); z-index: var(--z-hints);
   display: flex; flex-direction: column; gap: 8px; align-items: center;
   pointer-events: none;
 }
@@ -261,10 +279,10 @@ body {
 
 /* Небольшой экран: угол с камерой поменьше, чтобы не закрывать полэкрана. */
 @media (max-width: 1099px), (max-height: 700px) {
-  :root { --cam-w: 240px; --cam-h: 180px; }
+  :root { --cam-w: 240px; --cam-h: 180px; --pad-size: 160px; }
 }
 @media (max-width: 720px) {
-  :root { --cam-w: 160px; --cam-h: 120px; }
+  :root { --cam-w: 160px; --cam-h: 120px; --pad-size: 120px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .results__cols { grid-template-columns: 1fr; }
   /* Узко: подсказки над углом с камерой, а не рядом (--corner-h ставит мини-окно по своей высоте). */

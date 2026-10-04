@@ -9,8 +9,9 @@ import { control, type HandState } from '../shared/controlState'
  * Цвета: правая рука — коралловая (джойстик и прыжок), левая — бирюзовая (поворот мира).
  * Точки, на которые указывает подсказка «режима ошибки», подсвечиваются красным и пульсируют.
  *
- * Для ладони у лица это ещё и пульт: кольцо справа от лица, секторы крестом (вперёд, назад, вбок),
+ * Здесь видно, где в кадре круг-джойстик (справа внизу) и где ладонь: секторы крестом (вперёд, назад, вбок),
  * точка-ладонь и «палка» от центра. Жёлтый центр — «заведи ладонь сюда», зелёный — «готов».
+ * Большой джойстик на экране — PalmPad.tsx.
  */
 
 const W = 320
@@ -115,7 +116,7 @@ function describe(h: HandState | null, side: 'left' | 'right') {
   return j.sector >= 0 ? `Правая: ${SECTORS[j.sector].walk}` : 'Правая: стоп'
 }
 
-/** Кольцо ладони у лица: секторы, центр, стрелки. Радиусы — в долях высоты кадра, k — перевод в пиксели. */
+/** Круг-джойстик в кадре: секторы, центр, стрелки. Радиусы — в долях высоты кадра, k — перевод в пиксели. */
 function drawPalmRing(ctx: CanvasRenderingContext2D, k: { x: number; y: number }, t: number) {
   const j = control.joystick
   const cx = j.centerX * W
@@ -123,19 +124,6 @@ function drawPalmRing(ctx: CanvasRenderingContext2D, k: { x: number; y: number }
   const full = { x: j.radius * k.x, y: j.radius * k.y }
   const dead = { x: j.deadRadius * k.x, y: j.deadRadius * k.y }
   const waiting = !j.armed || j.calibrating || runtime.moveLocked
-
-  // Связь с лицом: пока рука не поднята, кольцо следует за лицом.
-  const f = control.face.points
-  if (j.faceAnchored && !j.armed && f.length >= 2) {
-    ctx.strokeStyle = 'rgba(255,247,234,0.45)'
-    ctx.setLineDash([4, 4])
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.moveTo(((f[0].x + f[1].x) / 2) * W, ((f[0].y + f[1].y) / 2) * H)
-    ctx.lineTo(cx, cy)
-    ctx.stroke()
-    ctx.setLineDash([])
-  }
 
   // Сектор, куда идём, — подсвечен.
   if (j.armed && j.sector >= 0 && !runtime.moveLocked) {

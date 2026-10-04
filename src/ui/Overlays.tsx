@@ -190,7 +190,7 @@ function RingSetup({ onDone }: { onDone: () => void }) {
     <div className="screen screen--dim">
       <div className="card">
         <h2 className="title title--small">Поставь круг</h2>
-        <p className="lead">Подними правую ладонь справа от лица — там, где руке удобно, — и подержи секунду.</p>
+        <p className="lead">Подними правую ладонь там, где руке удобно (лучше низко справа), и подержи секунду.</p>
         <div className="bar">
           <div className="bar__fill" style={{ width: `${progress * 100}%` }} />
         </div>

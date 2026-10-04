@@ -8,6 +8,7 @@ import { HandCursor } from './ui/Dwell'
 import { Hints } from './ui/Hints'
 import { MenuHoldRing } from './ui/MenuHoldRing'
 import { Countdown, HUD, PauseMenu } from './ui/Overlays'
+import { PalmPad } from './ui/PalmPad'
 import { Results } from './ui/Results'
 import { StartScreen } from './ui/StartScreen'
 import { Tutorial } from './ui/Tutorial'
@@ -56,6 +57,8 @@ export function App() {
       {phase === 'paused' && <CameraLost />}
       {phase === 'results' && <Results />}
       {inGame && control.tracking.ready && <CameraPreview />}
+      {/* Большой джойстик справа внизу: сам прячется, пока круга нет (камера не запущена) или открывается меню. */}
+      {playable && <PalmPad />}
       {playable && <Hints />}
       {(phase === 'playing' || phase === 'tutorial') && <MenuHoldRing />}
       {cursor && <HandCursor />}

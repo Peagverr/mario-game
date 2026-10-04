@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { hideHolo, matchHolo, showHolo } from '../game/holo/holoCue'
 import { sfx } from '../game/sfx'
 import { PRIORITY, say, voiceBusy } from '../game/voice'
-import { beginJoystickCalibration, calibrateJoystick, endJoystickCalibration } from '../input/tracker'
 import { control } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
@@ -35,6 +34,8 @@ const SHOW_HOLO_HAND = false
 
 /** Дольше этого обучение не ждёт, пока Окно договорит (мс). */
 const VOICE_WAIT_MAX_MS = 5000
+/** Столько держать ладонь в центре джойстика, чтобы шаг засчитался: мимолётное касание — не «понял». */
+const PALM_HOLD_MS = 700
 
 const hold = (cond: boolean, ctx: StepCtx, dt: number, ms: number) => {
   ctx.acc = cond ? ctx.acc + dt : Math.max(0, ctx.acc - dt * 2)
@@ -43,13 +44,13 @@ const hold = (cond: boolean, ctx: StepCtx, dt: number, ms: number) => {
 
 const STEPS: Step[] = [
   {
-    // Калибровка: там, где руке удобно, встанет круг-джойстик. Круг ставится относительно лица —
-    // поэтому ждём, чтобы и лицо было в кадре (отдельный шаг «сядь напротив камеры» больше не нужен).
+    // Круг-джойстик уже стоит справа внизу (в кадре и на экране) — калибровать ничего не нужно:
+    // ладонь зашла в центр и задержалась там — джойстик готов, герой слушается.
     id: 'palm',
-    title: 'Подними правую ладонь',
-    text: 'Сядь напротив камеры и подними правую ладонь справа от лица, где руке удобно. Подержи секунду: там встанет круг-джойстик (он виден в окне камеры слева внизу).',
-    check: (c, dt) => hold((!!control.hands.right?.openPalm && control.head.visible) || control.devKeyboard, c, dt, 1000),
-    onDone: calibrateJoystick,
+    title: 'Заведи ладонь в круг',
+    text: 'Подними правую ладонь низко справа — локоть можно опереть на стол — и заведи её в жёлтый центр джойстика справа внизу. Задержи там.',
+    check: (c, dt) =>
+      hold((control.joystick.armed && control.joystick.sector < 0) || control.devKeyboard, c, dt, PALM_HOLD_MS),
     holo: 'palm-raise',
     // «Камера включена. Я тебя вижу» звучит при входе в обучение (VoiceDirector), затем «Я — Окно…», затем инструкция.
     voicePre: 'awake.intro',
@@ -58,8 +59,8 @@ const STEPS: Step[] = [
   },
   {
     id: 'move',
-    title: 'Сдвинь ладонь из круга',
-    text: 'Ладонь в круге — стоишь. Сдвинь её: вверх — вперёд, вниз — назад, в стороны — вбок. Вернул в круг — стоп.',
+    title: 'Сдвинь ладонь из центра',
+    text: 'Ладонь в центре — стоишь. Сдвинь её: вверх — вперёд, вниз — назад, в стороны — вбок. Вернул в центр — стоп.',
     check: (c, dt) => hold(Math.hypot(control.move.x, control.move.y) > 0.5, c, dt, 1200),
     holo: 'palm-move',
     voice: 'walk.move',
@@ -107,15 +108,7 @@ export function Tutorial() {
   const current = useRef(step)
   current.current = step
 
-  // Пока не дошли до шага «иди», кольцо ладони следует за рукой и герой стоит:
-  // иначе рука, поднятая для калибровки, могла бы увести героя в портал лобби.
-  useEffect(() => {
-    beginJoystickCalibration()
-    return () => {
-      endJoystickCalibration()
-      hideHolo()
-    }
-  }, [])
+  useEffect(() => hideHolo, [])
 
   useEffect(() => {
     if (!step) return
