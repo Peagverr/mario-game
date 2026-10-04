@@ -26,6 +26,9 @@ export const runtime = {
   shake: 0,
   /** Слабый ноутбук (PerformanceMonitor снизил качество) — эффекты экономнее: меньше частиц у голограммы. */
   lowQuality: false,
+  /** Кадров рендера в секунду и чёткость (1 — лучшая для этого экрана, ниже 0.8 не бывает) — для замеров в ?debug. */
+  renderFps: 0,
+  sharpness: 1,
 }
 
 export function burst(pos: Vector3, color: string, count = 14, speed = 4) {

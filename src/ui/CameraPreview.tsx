@@ -45,6 +45,7 @@ function debugLine() {
   ]
   parts.push(poseDebug())
   parts.push(`распозн. ${control.tracking.inferMs.toFixed(0)} мс`)
+  parts.push(`рендер ${Math.round(runtime.renderFps)} к/с · чёткость ${Math.round(runtime.sharpness * 100)}%${runtime.lowQuality ? ' · эконом' : ''}`)
   return parts.filter(Boolean).join(' · ')
 }
 
