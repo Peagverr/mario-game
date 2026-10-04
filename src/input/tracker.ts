@@ -261,19 +261,36 @@ async function createTasks() {
         outputFacialTransformationMatrixes: true,
       }),
     ])
+  // Поза грузится вместе с руками и лицом (параллельно), а не в фоне потом: её первый прогон на видеокарте
+  // подвешивал игру посреди обучения — ровно когда игрок впервые поднимал руку.
   try {
-    const tasks = await make('GPU')
-    void createPose(vision, 'GPU')
+    const [tasks] = await Promise.all([make('GPU'), createPose(vision, 'GPU')])
     return tasks
   } catch (e) {
     console.warn('[tracker] GPU недоступен, переключаюсь на CPU', e)
-    const tasks = await make('CPU')
-    void createPose(vision, 'CPU')
+    const [tasks] = await Promise.all([make('CPU'), pose ? Promise.resolve() : createPose(vision, 'CPU')])
     return tasks
   }
 }
 
-/** Поза — в фоне, после старта: игра не ждёт лишние 6 МБ. Не загрузилась — руки узнаются без неё. */
+/**
+ * Первый прогон нейросетей на видеокарте компилирует её программы (MediaPipe делает это лениво):
+ * замер — ~2 с, главный поток стоит. Делаем его на экране «Загружаем нейросети», а не в первом кадре игры:
+ * раньше в эти 2 с картинка замирала, а голос уже говорил «Камера включена. Я тебя вижу».
+ */
+async function warmUp(v: HTMLVideoElement) {
+  if (v.readyState < 2) await new Promise((r) => v.addEventListener('loadeddata', r, { once: true }))
+  const t = performance.now()
+  try {
+    recognizer?.recognizeForVideo(v, t)
+    face?.detectForVideo(v, t)
+    pose?.detectForVideo(v, t)
+  } catch (e) {
+    console.warn('[tracker] пробный прогон нейросетей не удался — прогреются в игре', e)
+  }
+}
+
+/** Поза — не обязательна: не загрузилась — руки узнаются без неё. */
 async function createPose(vision: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>, delegate: 'GPU' | 'CPU') {
   try {
     pose = await PoseLandmarker.createFromOptions(vision, {
@@ -325,6 +342,7 @@ export async function startTracking(onStatus: (s: TrackerStatus) => void) {
 
   onStatus('models')
   ;[recognizer, face] = await createTasks()
+  await warmUp(video)
 
   running = true
   control.tracking.ready = true
