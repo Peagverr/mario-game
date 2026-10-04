@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { MathUtils, Vector3, type Group, type PerspectiveCamera as PCam } from 'three'
 import { control } from '../shared/controlState'
 import { runtime } from './runtime'
+import { follow, ROTATE_SMOOTH_S } from './viewSmoothing'
 import { adaptNeutral, DEFAULT_EYE_Z, HEAD_GAIN, HEAD_MAX, PHYSICAL_SCREEN_W, PITCH, PITCH_MAX, PITCH_MIN, WINDOW_W } from './windowParams'
 
 /**
@@ -31,6 +32,8 @@ const ahead = new Vector3()
 const lookTarget = new Vector3()
 let neutralReady = false
 let zoom = 1
+/** Поворот и наклон мира, которые видит камера: мягко догоняют руку (viewSmoothing.ts). */
+const view = { yaw: 0, pitch: 0, ready: false }
 
 export function WindowCamera() {
   const rig = useRef<Group>(null)
@@ -50,10 +53,18 @@ export function WindowCamera() {
     focus.y += (target.y - focus.y) * (1 - Math.exp(-2 * dt))
 
     // 2) Окно стоит на месте героя и смотрит на него под углом сверху; поворот мира — левым кулаком.
-    const yaw = -control.view.yaw
+    // Трекер меняет угол с частотой камеры, экран рисует чаще — сглаживаем, иначе мир вращается рывками.
+    if (!view.ready) {
+      view.yaw = control.view.yaw
+      view.pitch = control.view.pitch
+      view.ready = true
+    }
+    view.yaw = follow(view.yaw, control.view.yaw, dt, ROTATE_SMOOTH_S)
+    view.pitch = follow(view.pitch, control.view.pitch, dt, ROTATE_SMOOTH_S)
+    const yaw = -view.yaw
     runtime.cameraYaw = yaw
     rig.current.position.copy(focus)
-    const pitch = MathUtils.clamp(PITCH + control.view.pitch, PITCH_MIN, PITCH_MAX)
+    const pitch = MathUtils.clamp(PITCH + view.pitch, PITCH_MIN, PITCH_MAX)
     rig.current.rotation.set(-pitch, yaw, 0, 'YXZ')
 
     if (runtime.shake > 0.001) {

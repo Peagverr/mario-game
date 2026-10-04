@@ -70,6 +70,28 @@ let video: HTMLVideoElement | null = null
 let stream: MediaStream | null = null
 let running = false
 
+/**
+ * Новый кадр с камеры. У живого потока video.currentTime идёт непрерывно и меняется на КАЖДОМ кадре экрана,
+ * поэтому раньше нейросети прогонялись по одной и той же картинке 2–3 раза (экран 100–165 Гц, камера 60):
+ * замер — 100 обработок в секунду на 55 новых кадров. Главный поток был забит, кадры игры шли неровно.
+ * requestVideoFrameCallback зовётся ровно на каждый новый кадр камеры; нет его — старая проверка по currentTime.
+ */
+const CAN_WATCH_FRAMES = typeof HTMLVideoElement !== 'undefined' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype
+let freshFrame = false
+/** Номер подписки на кадры: после переподключения камеры старая цепочка сама затухает. */
+let frameWatch = 0
+
+function watchFrames(v: HTMLVideoElement) {
+  if (!CAN_WATCH_FRAMES) return
+  const gen = ++frameWatch
+  const onFrame = () => {
+    if (gen !== frameWatch) return
+    freshFrame = true
+    v.requestVideoFrameCallback(onFrame)
+  }
+  v.requestVideoFrameCallback(onFrame)
+}
+
 const trackers = { left: new HandTracker(), right: new HandTracker() }
 /** Какая рука левая, а какая правая — с памятью между кадрами (handIdentity.ts). */
 const identity = new HandIdentity()
@@ -294,6 +316,7 @@ export async function startTracking(onStatus: (s: TrackerStatus) => void) {
   video.muted = true
   video.playsInline = true
   await video.play()
+  watchFrames(video)
   control.tracking.video = video
   // Подключили или отключили камеру в системе — если наша не работает, пробуем сразу, не ждём таймера.
   navigator.mediaDevices.addEventListener?.('devicechange', () => {
@@ -331,6 +354,7 @@ async function reconnectCamera() {
     watchStream(next)
     video.srcObject = next
     await video.play()
+    watchFrames(video)
     old?.getTracks().forEach((tr) => tr.stop())
     s.cameraEnded = false
     s.lastVideoTime = -1
@@ -361,7 +385,8 @@ function loop() {
   if (t - s.lastLoopAt > LOOP_GAP_MS) s.lastNewFrameAt = t
   s.lastLoopAt = t
 
-  if (video.readyState < 2 || video.currentTime === s.lastVideoTime) {
+  const fresh = CAN_WATCH_FRAMES ? freshFrame : video.currentTime !== s.lastVideoTime
+  if (video.readyState < 2 || !fresh) {
     // Новых кадров нет. Если долго — камера замерла: руки и лицо отпускаем, подсказываем, переподключаемся.
     const cam = cameraStatus(t)
     control.tracking.camera = cam
@@ -376,6 +401,7 @@ function loop() {
     }
     return
   }
+  freshFrame = false
   s.lastVideoTime = video.currentTime
   s.lastNewFrameAt = t
 
@@ -478,7 +504,9 @@ function processHands(res: ReturnType<GestureRecognizer['recognizeForVideo']>, t
   applyPalm(next.right, t, !playable && !s.calibrating, s.pauseSince > 0)
   applyJump(next.right, t)
   applyGrab(next.left, t)
-  applyCursor(next.right ?? next.left)
+  // Курсор для кнопок «наведи и держи». В обучении — только левая рука: правая ведёт джойстик, и жёлтый курсор
+  // рядом с красной точкой джойстика (одна рука — два значка с разной привязкой) путал игроков.
+  applyCursor(phase === 'tutorial' ? next.left : (next.right ?? next.left))
 }
 
 /**

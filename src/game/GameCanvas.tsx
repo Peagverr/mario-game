@@ -63,6 +63,20 @@ function useDeviceDpr() {
   return dpr
 }
 
+/**
+ * Шейдеры всех объектов сцены компилируем сразу после её загрузки (пока идёт отсчёт 3-2-1), а не в тот момент,
+ * когда объект впервые попал в кадр: иначе первый поворот мира в уровне давал рывок (замер: 30 мс в «Островах»).
+ */
+function Precompile() {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  const camera = useThree((s) => s.camera)
+  useEffect(() => {
+    gl.compileAsync(scene, camera).catch(() => {})
+  }, [gl, scene, camera])
+  return null
+}
+
 /** Кадры рендера в секунду — для строки замеров под мини-окном (?debug). */
 function RenderStats() {
   useFrame((_, dt) => {
@@ -119,6 +133,7 @@ export function GameCanvas() {
       <Suspense fallback={null}>
         <Physics gravity={[0, -24, 0]} paused={phase === 'paused'} timeStep="vary">
           <Scene key={`${sceneId}-${runId}`} />
+          <Precompile key={`compile-${sceneId}-${runId}`} />
         </Physics>
       </Suspense>
       <Bursts />

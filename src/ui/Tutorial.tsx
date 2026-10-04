@@ -48,7 +48,7 @@ const STEPS: Step[] = [
     // ладонь зашла в центр и задержалась там — джойстик готов, герой слушается.
     id: 'palm',
     title: 'Заведи ладонь в круг',
-    text: 'Подними правую ладонь низко справа — локоть можно опереть на стол — и заведи её в жёлтый центр джойстика справа внизу. Задержи там.',
+    text: 'Подними правую ладонь — на джойстике справа внизу появится красная точка. Заведи её в жёлтый центр и задержи. Руку удобно держать низко, локоть можно опереть на стол.',
     check: (c, dt) =>
       hold((control.joystick.armed && control.joystick.sector < 0) || control.devKeyboard, c, dt, PALM_HOLD_MS),
     holo: 'palm-raise',
@@ -191,7 +191,7 @@ export function Tutorial() {
       {step && (
         <div className="tutorial__skip">
           <DwellButton variant="ghost" onActivate={() => useGame.getState().setPhase('playing')}>
-            Пропустить обучение
+            Пропустить обучение — наведи левой рукой
           </DwellButton>
         </div>
       )}
