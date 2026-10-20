@@ -93,7 +93,7 @@ TypeScript, React 19, Three.js, React Three Fiber, Rapier, MediaPipe Tasks Visio
 
 ## Built during the event
 
-The first commit is [e0d1073](https://github.com/Peagverr/mario-game/commit/e0d1073), 28 Sep 2026, 22:34 (UTC+5). We built the game under the name Okno for Admit Hackathon 2026 (case Motion, started 28 Sep 2026, final on 4 Oct 2026). The English version, Window, was made for EurekaDev 2026.
+The first commit is [e0d1073](https://github.com/Peagverr/mario-game/commit/e0d1073), 28 Sep 2026, 22:34 (UTC+5). EurekaDev 2026 opened submissions a day earlier, on 27 Sep 2026 at 16:15 (UTC+5), according to the [Devpost schedule](https://eurekadev.devpost.com/details/dates).
 
 ## Limitations
 
