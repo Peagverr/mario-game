@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { sfx } from '../game/sfx'
+import { useT } from '../i18n'
 import { control, type CameraStatus } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 
@@ -16,11 +17,8 @@ const BACK_STABLE_MS = 400
 const COUNT_FROM = 3
 const COUNT_STEP_MS = 800
 
-const TEXT: Record<Exclude<CameraStatus, 'ok'>, string> = {
-  black: 'Камера показывает чёрный кадр. Открой шторку камеры или закрой программу, которая её заняла.',
-  frozen: 'Камера перестала присылать картинку. Проверь, что она включена и её не заняла другая программа.',
-  ended: 'Камера отключилась. Включи её (кнопкой на ноутбуке или в настройках) — игра подключится сама.',
-}
+/** Что сказать про камеру (тексты в src/i18n.ts, lost.*). */
+type LostKind = Exclude<CameraStatus, 'ok'>
 
 /** Следит за камерой и ставит игру на паузу, если камера пропала. */
 export function useCameraPause() {
@@ -48,6 +46,7 @@ export function useCameraPause() {
 export function CameraLost() {
   const [cam, setCam] = useState<CameraStatus>(control.tracking.camera)
   const [count, setCount] = useState(0)
+  const s = useT().lost
   const reason = useGame((s) => s.pauseReason)
 
   useEffect(() => {
@@ -101,14 +100,14 @@ export function CameraLost() {
       <div className="card">
         {cam === 'ok' ? (
           <>
-            <h2 className="title title--small">Вижу тебя снова</h2>
-            <p className="lead">{count > 0 ? `Продолжаем через ${count}…` : 'Сейчас продолжим…'}</p>
+            <h2 className="title title--small">{s.backTitle}</h2>
+            <p className="lead">{count > 0 ? s.backCount(count) : s.backNow}</p>
           </>
         ) : (
           <>
-            <h2 className="title title--small">Камера не видит</h2>
-            <p className="lead">{TEXT[cam]}</p>
-            <p className="fine">Игра на паузе, таймер стоит. Как только камера заработает, продолжим с того же места.</p>
+            <h2 className="title title--small">{s.title}</h2>
+            <p className="lead">{s[cam as LostKind]}</p>
+            <p className="fine">{s.paused}</p>
           </>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { sfx } from '../game/sfx'
+import { useLang, useT } from '../i18n'
 import {
   beginJoystickCalibration,
   calibrateJoystick,
@@ -16,6 +17,7 @@ import { DwellButton } from './Dwell'
 /** Отсчёт 3-2-1 перед стартом. */
 export function Countdown() {
   const [n, setN] = useState(3)
+  const go = useT().hud.go
   useEffect(() => {
     if (n < 0) {
       useGame.getState().startRun()
@@ -27,7 +29,7 @@ export function Countdown() {
   }, [n])
   return (
     <div className="countdown" key={n}>
-      {n > 0 ? n : 'Вперёд!'}
+      {n > 0 ? n : go}
     </div>
   )
 }
@@ -47,6 +49,7 @@ export function HUD() {
   const secretsTotal = useGame((s) => s.secretsTotal)
   const [time, setTime] = useState(0)
   const [grabbing, setGrabbing] = useState(false)
+  const s = useT().hud
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -59,7 +62,7 @@ export function HUD() {
   return (
     <div className="hud">
       {sceneId === 'lobby' ? (
-        <div className="hud__pill hud__pill--lobby">Лобби — зайди в портал, чтобы начать уровень</div>
+        <div className="hud__pill hud__pill--lobby">{s.lobby}</div>
       ) : (
         <>
           <div className="hud__pill">
@@ -69,20 +72,18 @@ export function HUD() {
           </div>
           {secretsTotal > 0 && (
             <div className="hud__pill hud__pill--secret" key={secrets}>
-              тайные <b>{secrets}</b>
+              {s.secret} <b>{secrets}</b>
               <span className="hud__dim">/ {secretsTotal}</span>
             </div>
           )}
           <div className="hud__pill hud__pill--time">{formatTime(time)}</div>
         </>
       )}
-      {grabbing && <div className="hud__pill hud__pill--grab">держишь мир</div>}
+      {grabbing && <div className="hud__pill hud__pill--grab">{s.holding}</div>}
       <div className="hud__legend">
-        <span>ладонь в круг — готов</span>
-        <span>сдвинь ладонь — иди</span>
-        <span>кулак — прыжок</span>
-        <span>левый кулак — поворот, наклон, зум</span>
-        <span>две ладони — меню</span>
+        {s.legend.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
       </div>
     </div>
   )
@@ -98,42 +99,50 @@ export function PauseMenu() {
   const [ring, setRing] = useState(palmRingScale)
   const [grab, setGrab] = useState(grabSpeed)
   const g = useGame.getState()
+  const s = useT().menu
+  const { lang, setLang } = useLang()
   if (setup) return <RingSetup onDone={() => setSetup(false)} />
   return (
     <div className="screen screen--dim">
       <div className="card">
-        <h2 className="title title--small">Меню</h2>
-        <p className="lead">Наведи палец на кнопку и подержи секунду.</p>
+        <h2 className="title title--small">{s.title}</h2>
+        <p className="lead">{s.lead}</p>
         <div className="row">
-          <DwellButton onActivate={() => g.setPhase('playing')}>Продолжить</DwellButton>
+          <DwellButton onActivate={() => g.setPhase('playing')}>{s.resume}</DwellButton>
           <DwellButton variant="ghost" onActivate={() => g.restart()}>
-            Заново
+            {s.restart}
           </DwellButton>
           {g.sceneId !== 'lobby' && (
             <DwellButton variant="ghost" onActivate={() => g.goToScene('lobby')}>
-              В лобби
+              {s.lobby}
             </DwellButton>
           )}
         </div>
-        <h3 className="menu__section">Поворот мира левым кулаком — {Math.round(grab * 100)}%</h3>
+        <h3 className="menu__section">{s.grab(Math.round(grab * 100))}</h3>
         <div className="row row--tight">
           <DwellButton variant="ghost" onActivate={() => setGrab(scaleGrabSpeed(1 / GRAB_STEP))}>
-            Медленнее
+            {s.slower}
           </DwellButton>
           <DwellButton variant="ghost" onActivate={() => setGrab(scaleGrabSpeed(GRAB_STEP))}>
-            Быстрее
+            {s.faster}
           </DwellButton>
         </div>
-        <h3 className="menu__section">Круг-джойстик — {Math.round(ring * 100)}%</h3>
+        <h3 className="menu__section">{s.ring(Math.round(ring * 100))}</h3>
         <div className="row row--tight">
           <DwellButton variant="ghost" onActivate={() => setRing(resizePalmRing(1 / RING_STEP))}>
-            Меньше
+            {s.smaller}
           </DwellButton>
           <DwellButton variant="ghost" onActivate={() => setRing(resizePalmRing(RING_STEP))}>
-            Больше
+            {s.bigger}
           </DwellButton>
           <DwellButton variant="ghost" onActivate={() => setSetup(true)}>
-            Поставить заново
+            {s.place}
+          </DwellButton>
+        </div>
+        <h3 className="menu__section">{s.langTitle}</h3>
+        <div className="row row--tight">
+          <DwellButton variant="ghost" onActivate={() => setLang(lang === 'en' ? 'ru' : 'en')}>
+            {s.otherLang}
           </DwellButton>
         </div>
       </div>
@@ -149,6 +158,7 @@ const SETUP_GIVE_UP_MS = 10000
 /** «Поставить круг заново»: подними правую ладонь, где руке удобно, подержи секунду — круг встанет туда. */
 function RingSetup({ onDone }: { onDone: () => void }) {
   const [progress, setProgress] = useState(0)
+  const s = useT().menu
   const done = useRef(onDone)
   done.current = onDone
 
@@ -189,12 +199,12 @@ function RingSetup({ onDone }: { onDone: () => void }) {
   return (
     <div className="screen screen--dim">
       <div className="card">
-        <h2 className="title title--small">Поставь круг</h2>
-        <p className="lead">Подними правую ладонь там, где руке удобно (лучше низко справа), и подержи секунду.</p>
+        <h2 className="title title--small">{s.setupTitle}</h2>
+        <p className="lead">{s.setupLead}</p>
         <div className="bar">
           <div className="bar__fill" style={{ width: `${progress * 100}%` }} />
         </div>
-        <p className="fine">В окне камеры слева внизу жёлтый круг сейчас следует за ладонью.</p>
+        <p className="fine">{s.setupFine}</p>
       </div>
     </div>
   )

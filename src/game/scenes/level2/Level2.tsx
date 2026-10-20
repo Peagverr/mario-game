@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { CuboidCollider, RigidBody, useRapier } from '@react-three/rapier'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Color, ExtrudeGeometry, MeshStandardMaterial, Shape, Vector3, type Group } from 'three'
+import { useT } from '../../../i18n'
 import { useGame } from '../../../shared/gameStore'
 import { palette } from '../../palette'
 import { Player } from '../../Player'
@@ -37,6 +38,7 @@ const SEEN_S = 0.25
 const SEARCH_RADIUS = 14
 
 export function Level2() {
+  const tr = useT()
   useEffect(() => {
     const g = useGame.getState()
     g.setStarsTotal(level2.stars.length + level2.courtyards.length)
@@ -57,9 +59,9 @@ export function Level2() {
       <Goal position={level2.goal} />
       <Html center position={[-2.6, 2.2, 0.6]} distanceFactor={30} zIndexRange={[10, 0]}>
         <div className="level-sign">
-          <b>Загляни</b>
-          <span>В двориках за стенами спрятаны тайные звёзды.</span>
-          <span>Подними голову — загляни через стену. Или сожми левый кулак и потяни мир вниз. Увидел звезду — она твоя!</span>
+          <b>{tr.levels.level2.title}</b>
+          <span>{tr.level2.line1}</span>
+          <span>{tr.level2.line2}</span>
         </div>
       </Html>
       <Player spawn={level2.spawn} killY={level2.killY} />
@@ -216,6 +218,7 @@ function SecretStar({ position }: { position: [number, number, number] }) {
 
 /** Ворота перед финишем + забор вдоль края острова: открываются, когда найдены все тайные звёзды. */
 function GateWithFence() {
+  const tr = useT()
   const found = useGame((s) => s.secretsFound)
   const total = useGame((s) => s.secretsTotal)
   const open = total > 0 && found >= total
@@ -252,7 +255,7 @@ function GateWithFence() {
           </mesh>
           <Html center position={[0.6, H + 0.6, z]} distanceFactor={30} zIndexRange={[10, 0]}>
             <div className="level-sign level-sign--small">
-              Ворота откроются: тайные звёзды {found}/{total}
+              {tr.level2.gate(found, total)}
             </div>
           </Html>
         </group>

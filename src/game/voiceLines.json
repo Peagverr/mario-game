@@ -1,67 +1,67 @@
 {
   "01": [
-    { "id": "awake.hello", "text": "Камера включена. Я тебя вижу." },
-    { "id": "awake.intro", "text": "Я — Окно. Кнопки здесь не нужны. Начнём." }
+    { "id": "awake.hello", "text": "Камера включена. Я тебя вижу.", "en": "Camera is on. I can see you." },
+    { "id": "awake.intro", "text": "Я — Окно. Кнопки здесь не нужны. Начнём.", "en": "I'm Window. You won't need any buttons here. Let's start." }
   ],
   "02": [
-    { "id": "walk.holo", "text": "Повтори за голограммой." },
-    { "id": "walk.raise", "text": "Подними правую ладонь." },
-    { "id": "walk.contact", "text": "Есть контакт." },
-    { "id": "walk.move", "text": "Чтобы идти, сдвинь ладонь из центра." },
-    { "id": "walk.good", "text": "Хорошо. Идём дальше." }
+    { "id": "walk.holo", "text": "Повтори за голограммой.", "en": "Copy the hologram." },
+    { "id": "walk.raise", "text": "Подними правую ладонь.", "en": "Raise your right palm." },
+    { "id": "walk.contact", "text": "Есть контакт.", "en": "I've got your hand." },
+    { "id": "walk.move", "text": "Чтобы идти, сдвинь ладонь из центра.", "en": "To walk, move your palm out of the center." },
+    { "id": "walk.good", "text": "Хорошо. Идём дальше.", "en": "Good. Keep going." }
   ],
   "03": [
-    { "id": "jump.cliff", "text": "Впереди обрыв." },
-    { "id": "jump.teach", "text": "Чтобы прыгнуть, сожми кулак." },
-    { "id": "jump.ok", "text": "Прыжок засчитан." },
-    { "id": "fall.1", "text": "Гравитация победила. Пробуем ещё раз." },
-    { "id": "fall.2", "text": "Ничего страшного. Ещё попытка." }
+    { "id": "jump.cliff", "text": "Впереди обрыв.", "en": "Cliff ahead." },
+    { "id": "jump.teach", "text": "Чтобы прыгнуть, сожми кулак.", "en": "Make a fist to jump." },
+    { "id": "jump.ok", "text": "Прыжок засчитан.", "en": "Nice jump." },
+    { "id": "fall.1", "text": "Гравитация победила. Пробуем ещё раз.", "en": "Gravity won that one. Try again." },
+    { "id": "fall.2", "text": "Ничего страшного. Ещё попытка.", "en": "It happens. Go again." }
   ],
   "04": [
-    { "id": "window.intro", "text": "Теперь главное. Этот экран — не картинка. Это окно." },
-    { "id": "window.head", "text": "Подвинь голову влево. Мир сдвинется вместе с тобой." },
-    { "id": "window.peek", "text": "За стеной что-то есть. Привстань и загляни сверху." },
-    { "id": "window.found", "text": "Звезда найдена. Обычным взглядом её не увидеть." }
+    { "id": "window.intro", "text": "Теперь главное. Этот экран — не картинка. Это окно.", "en": "Now the main part. This screen works like a window." },
+    { "id": "window.head", "text": "Подвинь голову влево. Мир сдвинется вместе с тобой.", "en": "Move your head to the left. The world moves with you." },
+    { "id": "window.peek", "text": "За стеной что-то есть. Привстань и загляни сверху.", "en": "Something is hidden behind that wall. Sit up and look over it." },
+    { "id": "window.found", "text": "Звезда найдена. Обычным взглядом её не увидеть.", "en": "Star found. You can't see that one from where you usually sit." }
   ],
   "05": [
-    { "id": "rotate.intro", "text": "Мост разобран. Собрать его можно, только повернув мир." },
-    { "id": "rotate.show", "text": "Подними левую ладонь и веди в сторону." },
-    { "id": "rotate.done", "text": "Мост собран. Нужен был другой угол." },
-    { "id": "rotate.release", "text": "Опусти руку — мир останется так." }
+    { "id": "rotate.intro", "text": "Мост разобран. Собрать его можно, только повернув мир.", "en": "The bridge is in pieces. The only way to fix it is to turn the world." },
+    { "id": "rotate.show", "text": "Подними левую ладонь и веди в сторону.", "en": "Raise your left hand and move it to the side." },
+    { "id": "rotate.done", "text": "Мост собран. Нужен был другой угол.", "en": "Bridge done. It just needed a different angle." },
+    { "id": "rotate.release", "text": "Опусти руку — мир останется так.", "en": "Drop your hand. The world stays where it is." }
   ],
   "06": [
-    { "id": "climax.shake", "text": "Внимание. Остров разрушается." },
-    { "id": "climax.run", "text": "Поворачивай мир и беги к мосту. Быстро!" },
-    { "id": "climax.made", "text": "Успели. Чистая работа." }
+    { "id": "climax.shake", "text": "Внимание. Остров разрушается.", "en": "Warning. The island is collapsing." },
+    { "id": "climax.run", "text": "Поворачивай мир и беги к мосту. Быстро!", "en": "Turn the world and run for the bridge. Hurry!" },
+    { "id": "climax.made", "text": "Успели. Чистая работа.", "en": "Made it. Clean run." }
   ],
   "07": [
-    { "id": "finale.done", "text": "Финиш. Ни одной кнопки за всю игру." },
-    { "id": "finale.results", "text": "Вот твои результаты. Красным отмечено, где было трудно." },
-    { "id": "finale.bye", "text": "Сеанс окончен. До встречи." }
+    { "id": "finale.done", "text": "Финиш. Ни одной кнопки за всю игру.", "en": "That's the finish. You never pressed a single button." },
+    { "id": "finale.results", "text": "Вот твои результаты. Красным отмечено, где было трудно.", "en": "Here are your results. Red shows where it got hard." },
+    { "id": "finale.bye", "text": "Сеанс окончен. До встречи.", "en": "Session over. See you next time." }
   ],
   "08": [
-    { "id": "hint.fist-partial", "text": "Кулак не до конца. Согни все пальцы." },
-    { "id": "hint.wrong-hand", "text": "Это левая рука. Для ходьбы — правая." },
-    { "id": "hint.palm-not-armed", "text": "Ладонь вне круга. Сначала заведи её в центр." },
-    { "id": "hint.hand-turned", "text": "Камера видит ладонь ребром. Поверни её к экрану." },
-    { "id": "hint.hand-edge", "text": "Рука у края кадра. Сдвинь её к центру." },
-    { "id": "hint.open-palm", "text": "Пальцы сжаты. Раскрой ладонь полностью." }
+    { "id": "hint.fist-partial", "text": "Кулак не до конца. Согни все пальцы.", "en": "Your fist isn't closed. Curl all your fingers." },
+    { "id": "hint.wrong-hand", "text": "Это левая рука. Для ходьбы — правая.", "en": "That's your left hand. Walk with your right." },
+    { "id": "hint.palm-not-armed", "text": "Ладонь вне круга. Сначала заведи её в центр.", "en": "Your palm is outside the circle. Bring it to the center first." },
+    { "id": "hint.hand-turned", "text": "Камера видит ладонь ребром. Поверни её к экрану.", "en": "I can only see the edge of your hand. Turn it toward the screen." },
+    { "id": "hint.hand-edge", "text": "Рука у края кадра. Сдвинь её к центру.", "en": "Your hand is at the edge of the frame. Bring it back toward the center." },
+    { "id": "hint.open-palm", "text": "Пальцы сжаты. Раскрой ладонь полностью.", "en": "Your fingers are curled. Open your hand all the way." }
   ],
   "09": [
-    { "id": "hint.too-close", "text": "Слишком близко к камере. Отодвинься немного." },
-    { "id": "hint.too-far", "text": "Слишком далеко. Подвинься ближе." },
-    { "id": "hint.head-turned", "text": "Голова повёрнута. Смотри прямо в экран." },
-    { "id": "hint.no-face", "text": "Лицо не в кадре. Сядь напротив камеры." },
-    { "id": "hint.dark", "text": "Мало света. Включи лампу или повернись к окну." },
-    { "id": "hint.camera-blocked", "text": "Камера показывает чёрный экран. Проверь шторку." }
+    { "id": "hint.too-close", "text": "Слишком близко к камере. Отодвинься немного.", "en": "You're too close to the camera. Lean back a little." },
+    { "id": "hint.too-far", "text": "Слишком далеко. Подвинься ближе.", "en": "You're too far away. Come a bit closer." },
+    { "id": "hint.head-turned", "text": "Голова повёрнута. Смотри прямо в экран.", "en": "Your head is turned. Look straight at the screen." },
+    { "id": "hint.no-face", "text": "Лицо не в кадре. Сядь напротив камеры.", "en": "I can't see your face. Sit in front of the camera." },
+    { "id": "hint.dark", "text": "Мало света. Включи лампу или повернись к окну.", "en": "It's too dark. Turn on a lamp or face a window." },
+    { "id": "hint.camera-blocked", "text": "Камера показывает чёрный экран. Проверь шторку.", "en": "The camera only shows black. Check if it's covered." }
   ],
   "10": [
-    { "id": "short.clean", "text": "Чисто." },
-    { "id": "short.yes", "text": "Есть." },
-    { "id": "short.exact", "text": "Точно." },
-    { "id": "short.star", "text": "Плюс одна." },
-    { "id": "short.pause", "text": "Пауза. Продолжим, когда скажешь." },
-    { "id": "short.lobby", "text": "Три портала — три испытания. Выбирай." },
-    { "id": "short.idle", "text": "Я на связи. Подними ладонь, чтобы продолжить." }
+    { "id": "short.clean", "text": "Чисто.", "en": "Clean." },
+    { "id": "short.yes", "text": "Есть.", "en": "Got it." },
+    { "id": "short.exact", "text": "Точно.", "en": "Nailed it." },
+    { "id": "short.star", "text": "Плюс одна.", "en": "Plus one." },
+    { "id": "short.pause", "text": "Пауза. Продолжим, когда скажешь.", "en": "Paused. Ready when you are." },
+    { "id": "short.lobby", "text": "Три портала — три испытания. Выбирай.", "en": "Each portal leads to a different trial. Pick one." },
+    { "id": "short.idle", "text": "Я на связи. Подними ладонь, чтобы продолжить.", "en": "I'm still here. Raise your palm when you want to go on." }
   ]
 }

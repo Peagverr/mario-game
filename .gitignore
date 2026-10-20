@@ -13,3 +13,6 @@ voice_raw
 # Сырые выгрузки из Blender (сжатые копии лежат в public/models)
 art/export
 *.blend1
+
+# Пробные реплики голоса (tools/voice-en)
+voice-samples

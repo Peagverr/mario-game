@@ -1,4 +1,5 @@
 import { FaceLandmarker, FilesetResolver, GestureRecognizer, PoseLandmarker } from '@mediapipe/tasks-vision'
+import { t } from '../i18n'
 import { control, type CameraStatus, type HandState, type Point } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 import { BLACK_FRAME, detectCandidates, HintFilter } from './errors'
@@ -305,10 +306,11 @@ async function createPose(vision: Awaited<ReturnType<typeof FilesetResolver.forV
 
 /** Для отладки (?debug): загружена ли поза и какие запястья тела она видит. */
 export function poseDebug() {
-  if (!pose) return 'поза —'
+  const d = t().debug
+  if (!pose) return d.poseNone
   const a = performance.now() - s.armsAt < 1000 ? s.arms : null
-  if (!a) return 'поза: нет плеч'
-  return `поза: Л${a.left ? '✓' : '—'} П${a.right ? '✓' : '—'}`
+  if (!a) return d.poseNoArms
+  return d.pose(!!a.left, !!a.right)
 }
 
 /** Посчитать позу на этом кадре. */

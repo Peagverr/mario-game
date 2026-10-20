@@ -11,7 +11,9 @@
     "postinstall": "node scripts/copy-mediapipe-wasm.mjs",
     "deploy": "npm run build && node scripts/deploy-pages.mjs",
     "test": "vitest run",
-    "voice": "node scripts/cut-voice.mjs"
+    "voice": "node scripts/cut-voice.mjs",
+    "voice:en": "npm --prefix tools/voice-en run make",
+    "voice:en:check": "npm --prefix tools/voice-en run check"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

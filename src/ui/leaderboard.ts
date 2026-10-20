@@ -2,15 +2,17 @@
  * Таблица рекордов — отдельная для каждого уровня, хранится в браузере игрока (localStorage).
  * Имя придумываем сами: вводить его без клавиатуры неудобно.
  */
+import { t } from '../i18n'
+
 export type Record = { name: string; score: number; stars: number; seconds: number; at: number }
 
 const key = (level: string) => `okno.leaderboard.v2.${level}`
-const ADJ = ['Смелый', 'Быстрый', 'Ловкий', 'Хитрый', 'Весёлый', 'Зоркий', 'Прыгучий', 'Тихий']
-const NOUN = ['Лис', 'Барс', 'Ёж', 'Филин', 'Кот', 'Сокол', 'Волк', 'Енот']
 
+/** Ник на языке игры: «Смелый Лис», «Brave Fox» (списки в src/i18n.ts, names). */
 export function randomName() {
   const r = (a: string[]) => a[Math.floor(Math.random() * a.length)]
-  return `${r(ADJ)} ${r(NOUN)}`
+  const { adj, noun } = t().names
+  return `${r(adj)} ${r(noun)}`
 }
 
 export function loadRecords(level: string): Record[] {

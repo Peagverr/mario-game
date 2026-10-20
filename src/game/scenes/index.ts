@@ -14,18 +14,16 @@ import type { SceneId } from '../../shared/gameStore'
 export type { SceneId }
 
 export type LevelInfo = {
+  /** Название уровня и чему он учит (табличка портала) — в src/i18n.ts, levels[id]. */
   id: Exclude<SceneId, 'lobby'>
-  title: string
-  /** Чему учит уровень — показываем на табличке портала. */
-  feature: string
   color: string
   component: ComponentType
 }
 
 export const LEVELS: LevelInfo[] = [
-  { id: 'level1', title: 'Острова', feature: 'ходьба и прыжки', color: '#ffd23f', component: Level1 },
-  { id: 'level2', title: 'Загляни', feature: 'двигай головой', color: '#2ec4b6', component: Level2 },
-  { id: 'level3', title: 'Поверни мир', feature: 'левый кулак', color: '#ff5a5f', component: Level3 },
+  { id: 'level1', color: '#ffd23f', component: Level1 },
+  { id: 'level2', color: '#2ec4b6', component: Level2 },
+  { id: 'level3', color: '#ff5a5f', component: Level3 },
 ]
 
 export const SCENES: Record<SceneId, ComponentType | undefined> = {
