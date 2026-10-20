@@ -144,12 +144,13 @@ const en = {
     poseNoArms: 'pose: no shoulders',
     pose: (left: boolean, right: boolean) => `pose: L${left ? '✓' : '-'} R${right ? '✓' : '-'}`,
   },
+  /** Подпись под большим джойстиком: не шире круга (160 px), поэтому коротко. */
   pad: {
-    walk: ['Walking right', 'Walking forward', 'Walking left', 'Walking back'],
-    raise: 'Raise your palm',
+    walk: ['Walk right', 'Walk forward', 'Walk left', 'Walk back'],
+    raise: 'Raise palm',
     jump: 'Jump',
-    center: 'Palm to the center',
-    back: 'Back to the center',
+    center: 'To the center',
+    back: 'Center again',
     stop: 'Stop',
   },
   lost: {
@@ -250,7 +251,7 @@ const ru: Dict = {
   name: 'Окно',
   docTitle: 'Окно — игра, которой управляют камерой',
   start: {
-    eyebrow: 'Admit Hackathon · кейс Motion',
+    eyebrow: 'Игра через веб-камеру, без контроллера',
     lead: 'Экран станет окном в маленький парящий мир. Двигай головой — заглядывай внутрь. Правой ладонью в круге-джойстике веди героя, кулаком — прыгай, левым кулаком — поворачивай мир.',
     play: 'Включить камеру и играть',
     privacy: 'Видео с камеры обрабатывается прямо в браузере и никуда не отправляется. Это единственный клик — дальше всё управляется руками и головой.',

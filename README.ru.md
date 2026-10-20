@@ -4,11 +4,15 @@ English: [README.md](README.md)
 
 3D-игра в браузере, которой управляют через веб-камеру. Без клавиатуры и мыши.
 
-Команда **null pointers**, Admit Hackathon 2026, кейс Motion, направление «Игра».
+Команда null pointers.
 
-**Играть: https://mariogame-gilt.vercel.app**
+Играть: https://mariogame-gilt.vercel.app
+
+Код: https://github.com/Peagverr/mario-game
 
 Нужны Chrome или Edge, веб-камера и свет на лице. Сядь напротив камеры и нажми «Включить камеру и играть». Видео с камеры никуда не отправляется, все считается в браузере.
+
+Сайт открывается на английском, там игра называется Window. Чтобы играть по-русски, нажми RU на стартовом экране или открой ссылку https://mariogame-gilt.vercel.app/?lang=ru. Язык можно сменить и в меню паузы.
 
 ## Как играть
 
@@ -25,10 +29,10 @@ English: [README.md](README.md)
 
 ## Уровни
 
-1. **Лобби:** порталы на уровни и обучение.
-2. **Острова:** ходьба и прыжки.
-3. **Загляни:** звезды спрятаны за стенами, подними голову, чтобы их увидеть.
-4. **Поверни мир:** поверни мир левым кулаком, и мост соберется из досок.
+1. Лобби: порталы на уровни и обучение.
+2. Острова: ходьба и прыжки.
+3. Загляни: звезды спрятаны за стенами, подними голову, чтобы их увидеть.
+4. Поверни мир: поверни мир левым кулаком, и мост соберется из досок.
 
 ## Подсказки
 
@@ -43,12 +47,12 @@ npm run dev
 
 Открыть http://localhost:5173 в Chrome.
 
-Сделано на MediaPipe, Three.js и React. Голос «Окна» озвучен в ElevenLabs. Весь код написан после старта хакатона.
+Сделано на MediaPipe, Three.js и React. Русский голос «Окна» озвучен в ElevenLabs, английский сделан открытой моделью Kokoro-82M (голос af_bella) прямо на нашем ноутбуке, без ключей и аккаунтов. Первый коммит сделан 28.09.2026, на следующий день после того, как EurekaDev 2026 открыл прием работ (27.09.2026).
 
 ## Что использовано
 
-- **Текстуры и модели [Poly Haven](https://polyhaven.com)** (лицензия CC0, можно без указания автора, но мы благодарим): rock_surface, stone_brick_wall_001, aerial_rocks_02, forest_leaves_02, weathered_planks, wooden_lantern_01. Небо qwantani_dusk_2_puresky использовалось только при рендере в Blender.
-- **Герой, лобби, башни и панорамы неба** собраны и отрендерены нами в [Blender](https://www.blender.org) (сцена в `art/lobby.blend`, панорамы делает скрипт `art/pano_tools.py`).
-- **Распознавание рук, лица и позы тела:** [MediaPipe](https://ai.google.dev/edge/mediapipe) (Apache 2.0).
-- **3D и физика:** [Three.js](https://threejs.org), [React Three Fiber](https://r3f.docs.pmnd.rs), [Rapier](https://rapier.rs) (MIT и Apache 2.0).
-- **Голос:** [ElevenLabs](https://elevenlabs.io).
+- Текстуры и модели с [Poly Haven](https://polyhaven.com), лицензия CC0 (можно без указания автора, но мы благодарим): rock_surface, stone_brick_wall_001, aerial_rocks_02, forest_leaves_02, weathered_planks, wooden_lantern_01. Небо qwantani_dusk_2_puresky использовалось только при рендере в Blender.
+- Героя, лобби, башни и панорамы неба мы собрали и отрендерили сами в [Blender](https://www.blender.org) (сцена в `art/lobby.blend`, панорамы делает скрипт `art/pano_tools.py`).
+- Руки, лицо и позу тела распознает [MediaPipe](https://ai.google.dev/edge/mediapipe) (Apache 2.0).
+- 3D и физика: [Three.js](https://threejs.org), [React Three Fiber](https://r3f.docs.pmnd.rs), [Rapier](https://rapier.rs) (MIT и Apache 2.0).
+- Русский голос сделан в [ElevenLabs](https://elevenlabs.io), английский в [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) (Apache 2.0).
