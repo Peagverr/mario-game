@@ -1,14 +1,15 @@
 import { PerformanceMonitor } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { Bloom, EffectComposer, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { Physics } from '@react-three/rapier'
 import { ToneMappingMode } from 'postprocessing'
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useGame } from '../shared/gameStore'
 import { AtmosphereDriver } from './atmosphere/AtmosphereDriver'
 import { Bursts, Lights, Sky } from './Environment'
 import { palette } from './palette'
 import { QUALITY_FLIPFLOPS, qualityBounds, qualityLevels, stepQuality } from './quality'
+import { RenderPacer } from './RenderPacer'
 import { runtime } from './runtime'
 import { SCENES } from './scenes'
 import { SpiritDirector } from './spirit/SpiritDirector'
@@ -21,6 +22,8 @@ import { WindowCamera } from './WindowCamera'
  * window.__advance(кадров, шаг). Так физику можно проверить, даже когда вкладка скрыта и браузер не рисует кадры.
  */
 const STEP_MODE = new URLSearchParams(location.search).has('step')
+/** Отладка: ?light — облегчённый режим сразу, не дожидаясь замера распознавания (pacing.ts). */
+const FORCE_LIGHT = new URLSearchParams(location.search).has('light')
 
 function DebugStepper() {
   const advance = useThree((s) => s.advance)
@@ -103,6 +106,13 @@ export function GameCanvas() {
     runtime.lowQuality = q.low
     runtime.sharpness = q.dpr / levels[0].dpr
   }, [q, levels])
+  // Слабая видеокарта (распознавание медленное) — SMAA вместо MSAA и каждый второй кадр на быстром экране (pacing.ts).
+  const [light, setLight] = useState(FORCE_LIGHT)
+  const onSlow = useCallback(() => setLight(true), [])
+  useEffect(() => {
+    runtime.lightMode = light
+  }, [light])
+  const smaa = light && q.msaa > 0
 
   return (
     <Canvas
@@ -113,7 +123,7 @@ export function GameCanvas() {
       gl={{ antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: STEP_MODE }}
       className="game-canvas"
     >
-      {STEP_MODE && <DebugStepper />}
+      {STEP_MODE ? <DebugStepper /> : <RenderPacer light={light} onSlow={onSlow} />}
       <RenderStats />
       <PerformanceMonitor
         bounds={qualityBounds}
@@ -139,10 +149,11 @@ export function GameCanvas() {
       <Bursts />
       {/* Дух Окна — у героя во всех сценах (вид — spirit/, поведение обучения — spiritState). */}
       <SpiritDirector />
-      <EffectComposer multisampling={q.msaa}>
+      <EffectComposer multisampling={smaa ? 0 : q.msaa}>
         <Bloom mipmapBlur resolutionScale={0.5} luminanceThreshold={0.85} intensity={q.low ? 0.4 : 0.7} />
         <Vignette offset={0.25} darkness={0.45} />
         <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+        {smaa ? <SMAA /> : <></>}
       </EffectComposer>
     </Canvas>
   )
