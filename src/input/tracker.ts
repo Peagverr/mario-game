@@ -76,9 +76,12 @@ let running = false
  * поэтому раньше нейросети прогонялись по одной и той же картинке 2–3 раза (экран 100–165 Гц, камера 60):
  * замер — 100 обработок в секунду на 55 новых кадров. Главный поток был забит, кадры игры шли неровно.
  * requestVideoFrameCallback зовётся ровно на каждый новый кадр камеры; нет его — старая проверка по currentTime.
+ *
+ * Кадр распознаём прямо в этом обработчике: браузер зовёт его в том же кадре экрана непосредственно перед
+ * requestAnimationFrame (спецификация video-rvfc), и игра рисует свежие руки и голову сразу. Раньше обработчик
+ * только ставил флаг, а распознавание шло в своём requestAnimationFrame — уже после того, как игра нарисовала кадр.
  */
 const CAN_WATCH_FRAMES = typeof HTMLVideoElement !== 'undefined' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype
-let freshFrame = false
 /** Номер подписки на кадры: после переподключения камеры старая цепочка сама затухает. */
 let frameWatch = 0
 
@@ -87,8 +90,8 @@ function watchFrames(v: HTMLVideoElement) {
   const gen = ++frameWatch
   const onFrame = () => {
     if (gen !== frameWatch) return
-    freshFrame = true
     v.requestVideoFrameCallback(onFrame)
+    if (running && video === v && video.readyState >= 2) processFrame(performance.now())
   }
   v.requestVideoFrameCallback(onFrame)
 }
@@ -405,23 +408,28 @@ function loop() {
   if (t - s.lastLoopAt > LOOP_GAP_MS) s.lastNewFrameAt = t
   s.lastLoopAt = t
 
-  const fresh = CAN_WATCH_FRAMES ? freshFrame : video.currentTime !== s.lastVideoTime
-  if (video.readyState < 2 || !fresh) {
-    // Новых кадров нет. Если долго — камера замерла: руки и лицо отпускаем, подсказываем, переподключаемся.
-    const cam = cameraStatus(t)
-    control.tracking.camera = cam
-    if (cam === 'frozen' || cam === 'ended') {
-      processHands(NO_HANDS, t)
-      control.head.visible = false
-      control.face.points = []
-      updateHints(t)
-      if (t - s.lastNewFrameAt > RECONNECT_AFTER_MS || cam === 'ended') {
-        if (t - s.lastReconnectAt > RECONNECT_EVERY_MS) void reconnectCamera()
-      }
-    }
+  // Без requestVideoFrameCallback новый кадр ловим здесь, по currentTime (с ним — в watchFrames).
+  if (!CAN_WATCH_FRAMES && video.readyState >= 2 && video.currentTime !== s.lastVideoTime) {
+    processFrame(t)
     return
   }
-  freshFrame = false
+  // Новых кадров нет. Если долго — камера замерла: руки и лицо отпускаем, подсказываем, переподключаемся.
+  const cam = cameraStatus(t)
+  control.tracking.camera = cam
+  if (cam === 'frozen' || cam === 'ended') {
+    processHands(NO_HANDS, t)
+    control.head.visible = false
+    control.face.points = []
+    updateHints(t)
+    if (t - s.lastNewFrameAt > RECONNECT_AFTER_MS || cam === 'ended') {
+      if (t - s.lastReconnectAt > RECONNECT_EVERY_MS) void reconnectCamera()
+    }
+  }
+}
+
+/** Распознать новый кадр камеры: руки каждый кадр, лицо через кадр, поза — когда нужна. */
+function processFrame(t: number) {
+  if (!video || !recognizer || !face) return
   s.lastVideoTime = video.currentTime
   s.lastNewFrameAt = t
 
