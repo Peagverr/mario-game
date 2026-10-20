@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { sfx } from '../game/sfx'
 import { voiceNow } from '../game/voice'
+import { useT } from '../i18n'
 import { control, type Hint } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 
@@ -21,6 +22,7 @@ export function Hints() {
   const [hints, setHints] = useState<Hint[]>([])
   const [subtitle, setSubtitle] = useState('')
   const shown = useRef(new Set<string>())
+  const name = useT().name
 
   useEffect(() => {
     let raf = 0
@@ -51,7 +53,7 @@ export function Hints() {
     <div className="hints" role="status" aria-live="polite">
       {subtitle && (
         <div key={subtitle} className="subtitle">
-          <span className="subtitle__who">Окно</span>
+          <span className="subtitle__who">{name}</span>
           {subtitle}
         </div>
       )}

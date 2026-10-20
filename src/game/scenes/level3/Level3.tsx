@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody, type RapierCollider } from '@react-three/rapier'
 import { useEffect, useMemo, useRef } from 'react'
 import { BoxGeometry, Color, MathUtils, Vector3, type Mesh, type MeshStandardMaterial } from 'three'
+import { t, useT } from '../../../i18n'
 import { useGame } from '../../../shared/gameStore'
 import { palette } from '../../palette'
 import { Player } from '../../Player'
@@ -74,6 +75,7 @@ function angleDiff(a: number, b: number) {
 
 export function Level3() {
   useEffect(() => useGame.getState().setStarsTotal(STARS.length), [])
+  const tr = useT()
   return (
     <>
       <Platforms platforms={PLATFORMS} />
@@ -84,9 +86,9 @@ export function Level3() {
       <Goal position={[-1.2, 0, -14]} />
       <Html center position={[-2.2, 2.4, 1.2]} distanceFactor={30} zIndexRange={[10, 0]}>
         <div className="level-sign">
-          <b>Поверни мир</b>
-          <span>Мосты собираются только под нужным углом.</span>
-          <span>Сожми левый кулак и веди в сторону — доски съедутся в мост.</span>
+          <b>{tr.levels.level3.title}</b>
+          <span>{tr.level3.line1}</span>
+          <span>{tr.level3.line2}</span>
         </div>
       </Html>
       <Player spawn={[0, 1.2, 0]} killY={-10} />
@@ -176,11 +178,8 @@ function GhostBridge({ b }: { b: Bridge }) {
     // Подсказка у начала моста: в какую сторону вести кулак.
     const el = sign.current
     if (el) {
-      const text = solid
-        ? 'Мост собран — вперёд!'
-        : diff > 0
-          ? 'Поверни мир: левый кулак → веди вправо'
-          : 'Поверни мир: левый кулак → веди влево'
+      const s = t().level3
+      const text = solid ? s.bridgeOk : diff > 0 ? s.bridgeRight : s.bridgeLeft
       if (el.textContent !== text) el.textContent = text
       el.classList.toggle('is-ok', solid)
     }

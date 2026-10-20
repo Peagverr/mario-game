@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { runtime } from '../game/runtime'
 import { poseDebug } from '../input/tracker'
 import { sfx } from '../game/sfx'
+import { t, useT } from '../i18n'
 import { control, type HandState } from '../shared/controlState'
 
 /**
@@ -24,13 +25,8 @@ const BONES: [number, number][] = [
   [13, 17], [0, 17], [17, 18], [18, 19], [19, 20],
 ]
 const COLORS = { right: '#ff5a5f', left: '#2ec4b6', bad: '#ff2d2d', wait: '#ffd23f', ready: '#9be15d', cream: '#fff7ea', ink: '#1d2340' }
-/** Секторы кольца: 0 вправо, 1 вперёд, 2 влево, 3 назад — стрелка и подпись. */
-const SECTORS = [
-  { arrow: '→', walk: 'идёт вправо' },
-  { arrow: '↑', walk: 'идёт вперёд' },
-  { arrow: '←', walk: 'идёт влево' },
-  { arrow: '↓', walk: 'идёт назад' },
-]
+/** Секторы кольца: 0 вправо, 1 вперёд, 2 влево, 3 назад — стрелка (подпись — в src/i18n.ts, cam.rightWalk). */
+const SECTORS = [{ arrow: '→' }, { arrow: '↑' }, { arrow: '←' }, { arrow: '↓' }]
 /** Открой игру с ?debug — под мини-окном появятся замеры для подстройки порогов. */
 const DEBUG = new URLSearchParams(location.search).has('debug')
 
@@ -38,24 +34,26 @@ function debugLine() {
   const l = control.hands.left
   const r = control.hands.right
   const h = control.head
+  const s = t().debug
   const parts = [
-    l ? `левая ${l.fist ? 'кулак ✓' : 'открыта'}` : 'левая —',
-    r ? `пальцы ${r.curls.map((c) => (c === 'curled' ? '●' : c === 'half' ? '◐' : '○')).join('')}` : '',
-    h.visible ? `голова x${(h.x * 100).toFixed(0)} y${(h.y * 100).toFixed(0)} z${(h.z * 100).toFixed(0)} см` : 'лицо —',
+    l ? s.left(l.fist) : s.leftNone,
+    r ? s.fingers(r.curls.map((c) => (c === 'curled' ? '●' : c === 'half' ? '◐' : '○')).join('')) : '',
+    h.visible ? s.head((h.x * 100).toFixed(0), (h.y * 100).toFixed(0), (h.z * 100).toFixed(0)) : s.faceNone,
   ]
   parts.push(poseDebug())
-  parts.push(`распозн. ${control.tracking.inferMs.toFixed(0)} мс`)
-  parts.push(`рендер ${Math.round(runtime.renderFps)} к/с · чёткость ${Math.round(runtime.sharpness * 100)}%${runtime.lowQuality ? ' · эконом' : ''}`)
+  parts.push(s.infer(control.tracking.inferMs.toFixed(0)))
+  parts.push(s.render(Math.round(runtime.renderFps), Math.round(runtime.sharpness * 100), runtime.lowQuality))
   return parts.filter(Boolean).join(' · ')
 }
 
 /** Что делает левый кулак: двигает мир (поворот и наклон вместе), докручивает его сам или приближает. */
 function describeGrab() {
   const v = control.view
-  if (v.mode === 'zoom') return `Левая: зум ×${v.zoom.toFixed(1)}`
-  if (v.rate > 0) return 'Левая: мир крутится сам'
-  if (v.mode === 'move') return 'Левая: держишь мир'
-  return 'Левая: кулак — веди или толкай'
+  const s = t().cam
+  if (v.mode === 'zoom') return s.leftZoom(v.zoom.toFixed(1))
+  if (v.rate > 0) return s.leftSpin
+  if (v.mode === 'move') return s.leftHold
+  return s.leftFist
 }
 
 /**
@@ -106,15 +104,16 @@ function drawGrabZone(ctx: CanvasRenderingContext2D, h: HandState, k: { x: numbe
 }
 
 function describe(h: HandState | null, side: 'left' | 'right') {
-  if (!h) return side === 'right' ? 'Правая: нет' : 'Левая: нет'
-  if (side === 'left') return h.fist ? describeGrab() : 'Левая: видна'
-  if (h.fist) return 'Правая: кулак → прыжок'
+  const s = t().cam
+  if (!h) return side === 'right' ? s.rightNone : s.leftNone
+  if (side === 'left') return h.fist ? describeGrab() : s.leftSeen
+  if (h.fist) return s.rightFist
   const j = control.joystick
-  if (j.suspended) return 'Правая: видна'
-  if (j.calibrating) return 'Правая: держи — ставлю круг'
-  if (!j.armed) return 'Правая: заведи в жёлтый круг'
-  if (runtime.moveLocked) return 'Правая: верни в круг'
-  return j.sector >= 0 ? `Правая: ${SECTORS[j.sector].walk}` : 'Правая: стоп'
+  if (j.suspended) return s.rightSeen
+  if (j.calibrating) return s.rightCalibrating
+  if (!j.armed) return s.rightArm
+  if (runtime.moveLocked) return s.rightBack
+  return j.sector >= 0 ? s.rightWalk[j.sector] : s.rightStop
 }
 
 /** Круг-джойстик в кадре: секторы, центр, стрелки. Радиусы — в долях высоты кадра, k — перевод в пиксели. */
@@ -220,6 +219,7 @@ export function CameraPreview() {
   const root = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [labels, setLabels] = useState({ left: '', right: '', fps: 0, debug: '' })
+  const fpsLabel = useT().cam.fps
   const dpr = Math.min(2, window.devicePixelRatio || 1)
 
   // Настоящая высота угла (подписи переносятся по-разному) — чтобы на узком экране подсказки вставали над ним.
@@ -323,7 +323,7 @@ export function CameraPreview() {
       <div className="cam-preview__labels">
         <span className="tag tag--right">{labels.right}</span>
         <span className="tag tag--left">{labels.left}</span>
-        <span className="cam-preview__fps">камера {labels.fps} к/с</span>
+        <span className="cam-preview__fps">{fpsLabel(labels.fps)}</span>
         {labels.debug && <span className="cam-preview__debug">{labels.debug}</span>}
       </div>
     </div>

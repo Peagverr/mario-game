@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { hideHolo, matchHolo, showHolo } from '../game/holo/holoCue'
 import { sfx } from '../game/sfx'
 import { PRIORITY, say, voiceBusy } from '../game/voice'
+import { useT } from '../i18n'
 import { control } from '../shared/controlState'
 import { useGame } from '../shared/gameStore'
 import { DwellButton } from './Dwell'
@@ -12,9 +13,8 @@ import { DwellButton } from './Dwell'
  */
 
 type Step = {
-  id: string
-  title: string
-  text: string
+  /** Заголовок и текст шага — в src/i18n.ts (tutorial.steps[id]). */
+  id: 'palm' | 'move' | 'jump' | 'grab' | 'head' | 'menu'
   /** Проверка каждый кадр; вернуть 0..1 — прогресс шага. */
   check: (ctx: StepCtx, dt: number) => number
   onDone?: () => void
@@ -47,8 +47,6 @@ const STEPS: Step[] = [
     // Круг-джойстик уже стоит справа внизу (в кадре и на экране) — калибровать ничего не нужно:
     // ладонь зашла в центр и задержалась там — джойстик готов, герой слушается.
     id: 'palm',
-    title: 'Заведи ладонь в круг',
-    text: 'Подними правую ладонь — на джойстике справа внизу появится красная точка. Заведи её в жёлтый центр и задержи. Руку удобно держать низко, локоть можно опереть на стол.',
     check: (c, dt) =>
       hold((control.joystick.armed && control.joystick.sector < 0) || control.devKeyboard, c, dt, PALM_HOLD_MS),
     holo: 'palm-raise',
@@ -59,8 +57,6 @@ const STEPS: Step[] = [
   },
   {
     id: 'move',
-    title: 'Сдвинь ладонь из центра',
-    text: 'Ладонь в центре — стоишь. Сдвинь её: вверх — вперёд, вниз — назад, в стороны — вбок. Вернул в центр — стоп.',
     check: (c, dt) => hold(Math.hypot(control.move.x, control.move.y) > 0.5, c, dt, 1200),
     holo: 'palm-move',
     voice: 'walk.move',
@@ -68,8 +64,6 @@ const STEPS: Step[] = [
   },
   {
     id: 'jump',
-    title: 'Сожми кулак',
-    text: 'Кулак правой руки — прыжок. Разожми и сожми снова, чтобы прыгнуть ещё раз.',
     check: (c) => (control.jumpSeq !== c.start.jumpSeq ? 1 : 0),
     holo: 'fist',
     voice: 'jump.teach',
@@ -77,8 +71,6 @@ const STEPS: Step[] = [
   },
   {
     id: 'grab',
-    title: 'Сожми левый кулак',
-    text: 'Левый кулак держит мир: веди его куда угодно — мир крутится и наклоняется. Уведи дальше бирюзового круга — мир будет крутиться сам. Кулак к камере или от неё — приблизить или отдалить. Разжал — отпустил.',
     check: (c) =>
       Math.min(1, Math.max(Math.abs(control.view.yaw - c.start.yaw) / 0.6, Math.abs(control.view.pitch - c.start.pitch) / 0.3)),
     // Своей реплики «сожми левый кулак» пока нет — голос только хвалит, когда получилось.
@@ -86,16 +78,12 @@ const STEPS: Step[] = [
   },
   {
     id: 'head',
-    title: 'Подвигай головой',
-    text: 'Влево-вправо, вверх-вниз. Экран — окно: загляни в мир сбоку.',
     check: (c) => Math.min(1, Math.abs(control.head.x - c.start.headX) / 0.05),
     voice: 'window.head',
     voiceDone: 'short.exact',
   },
   {
     id: 'menu',
-    title: 'Две ладони — меню',
-    text: 'Раскрой обе ладони и подержи секунду — откроется меню: пауза, заново, лобби, размер и место круга.',
     check: (c) => (control.pauseSeq !== c.start.pauseSeq ? 1 : Math.max(control.menuHold * 0.95, control.devKeyboard ? 1 : 0)),
   },
 ]
@@ -105,6 +93,7 @@ export function Tutorial() {
   const [progress, setProgress] = useState(0)
   const ctx = useRef<StepCtx>({ acc: 0, start: { jumpSeq: 0, yaw: 0, pitch: 0, headX: 0, pauseSeq: 0 } })
   const step = STEPS[index]
+  const s = useT().tutorial
   const current = useRef(step)
   current.current = step
 
@@ -176,22 +165,22 @@ export function Tutorial() {
         {step ? (
           <>
             <p className="eyebrow">
-              Шаг {index + 1} из {STEPS.length}
+              {s.step(index + 1, STEPS.length)}
             </p>
-            <h2 className="tutorial__title">{step.title}</h2>
-            <p className="tutorial__text">{step.text}</p>
+            <h2 className="tutorial__title">{s.steps[step.id].title}</h2>
+            <p className="tutorial__text">{s.steps[step.id].text}</p>
             <div className="bar">
               <div className="bar__fill" style={{ width: `${progress * 100}%` }} />
             </div>
           </>
         ) : (
-          <h2 className="tutorial__title">Отлично! Поехали</h2>
+          <h2 className="tutorial__title">{s.done}</h2>
         )}
       </div>
       {step && (
         <div className="tutorial__skip">
           <DwellButton variant="ghost" onActivate={() => useGame.getState().setPhase('playing')}>
-            Пропустить обучение — наведи левой рукой
+            {s.skip}
           </DwellButton>
         </div>
       )}

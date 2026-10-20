@@ -1,5 +1,6 @@
 import type { CameraStatus, HandState, Hint, HintCode } from '../shared/controlState'
-import { FINGER_NAMES, FINGER_POINTS } from './gestures'
+import { t } from '../i18n'
+import { FINGER_POINTS } from './gestures'
 
 /**
  * «Режим ошибки»: замечаем движения, которые ПОЧТИ правильные, и говорим, что конкретно исправить.
@@ -37,9 +38,6 @@ export type ErrorContext = {
   inTutorial: boolean
 }
 
-function fingersList(idx: number[]) {
-  return idx.map((i) => FINGER_NAMES[i]).join(', ')
-}
 
 function edgeHint(hand: HandState, side: 'left' | 'right'): Hint | null {
   const m = 0.025
@@ -48,58 +46,60 @@ function edgeHint(hand: HandState, side: 'left' | 'right'): Hint | null {
     minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x)
     minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y)
   }
-  const who = side === 'right' ? 'Правая рука' : 'Левая рука'
-  if (minX < m) return { code: 'hand-edge', hand: side, arrow: 'right', text: `${who} уходит за левый край кадра — сдвинь её правее` }
-  if (maxX > 1 - m) return { code: 'hand-edge', hand: side, arrow: 'left', text: `${who} уходит за правый край кадра — сдвинь её левее` }
-  if (maxY > 1 - m) return { code: 'hand-edge', hand: side, arrow: 'up', text: `${who} слишком низко — подними её выше, в центр кадра` }
-  if (minY < m) return { code: 'hand-edge', hand: side, arrow: 'down', text: `${who} слишком высоко — опусти её ниже` }
+  const s = t().hints
+  const who = side === 'right' ? s.rightHand : s.leftHand
+  if (minX < m) return { code: 'hand-edge', hand: side, arrow: 'right', text: s.edgeLeft(who) }
+  if (maxX > 1 - m) return { code: 'hand-edge', hand: side, arrow: 'left', text: s.edgeRight(who) }
+  if (maxY > 1 - m) return { code: 'hand-edge', hand: side, arrow: 'up', text: s.edgeLow(who) }
+  if (minY < m) return { code: 'hand-edge', hand: side, arrow: 'down', text: s.edgeHigh(who) }
   return null
 }
 
 export function detectCandidates(c: ErrorContext): Hint[] {
+  const s = t().hints
   // Камера не присылает кадры или чёрный кадр — причина всего остального («не вижу лицо», «подними руку»):
   // говорим только о ней.
   if (c.camera === 'frozen' || c.camera === 'ended') {
-    return [{ code: 'camera-lost', text: 'Камера перестала присылать картинку — проверь, что она включена и её не заняла другая программа. Игра подключится к ней сама' }]
+    return [{ code: 'camera-lost', text: s.cameraLost }]
   }
   if (c.camera === 'black' || c.brightness < BLACK_FRAME) {
-    return [{ code: 'camera-blocked', text: 'Камера показывает чёрный кадр — открой шторку камеры или закрой программу, которая её заняла' }]
+    return [{ code: 'camera-blocked', text: s.cameraBlocked }]
   }
 
   const out: Hint[] = []
 
   // — Окружение и положение человека —
   if (c.brightness < 0.16) {
-    out.push({ code: 'dark', text: 'Слишком темно — включи свет или повернись лицом к окну' })
+    out.push({ code: 'dark', text: s.dark })
   }
   if (c.noFaceMs > 900) {
-    out.push({ code: 'no-face', text: 'Не вижу лицо — сядь прямо напротив камеры' })
+    out.push({ code: 'no-face', text: s.noFace })
   } else if (c.head.visible) {
     if (c.head.z < 0.33) {
       const cm = Math.round((0.5 - c.head.z) * 100)
-      out.push({ code: 'too-close', arrow: 'farther', text: `Слишком близко к экрану — отодвинься примерно на ${cm} см` })
+      out.push({ code: 'too-close', arrow: 'farther', text: s.tooClose(cm) })
     } else if (c.head.z > 1.15) {
       const cm = Math.round((c.head.z - 0.75) * 100)
-      out.push({ code: 'too-far', arrow: 'closer', text: `Далеко от камеры — подвинься ближе примерно на ${cm} см` })
+      out.push({ code: 'too-far', arrow: 'closer', text: s.tooFar(cm) })
     }
     if (Math.abs(c.head.yawDeg) > 32) {
-      out.push({ code: 'head-turned', text: 'Голова повёрнута в сторону — повернись лицом к экрану. Двигай головой, а не поворачивай её' })
+      out.push({ code: 'head-turned', text: s.headTurned })
     }
   }
 
   if (!c.wantsHands) return out
 
   if (c.inTutorial && c.noHandsMs > 1500) {
-    out.push({ code: 'no-hands', hand: 'right', text: 'Подними правую ладонь — появится красная точка. Заведи её в жёлтый центр джойстика справа внизу' })
+    out.push({ code: 'no-hands', hand: 'right', text: s.noHands })
   }
 
   // Левая рука пропала прямо во время хвата — почти всегда её повернули ребром или увели из кадра.
   if (c.leftLostWhileGrabMs > 250 && c.leftLostWhileGrabMs < 4000) {
-    out.push({ code: 'hand-turned', hand: 'left', text: 'Камера потеряла левую руку — держи кулак костяшками к камере, не ребром' })
+    out.push({ code: 'hand-turned', hand: 'left', text: s.handTurned })
   }
 
   if (c.onlyLeftMs > 1200) {
-    out.push({ code: 'wrong-hand', hand: 'left', text: 'Ходьба — правой рукой. Левой сожми кулак, чтобы повернуть мир' })
+    out.push({ code: 'wrong-hand', hand: 'left', text: s.wrongHand })
   }
 
   // — Правая рука: ладонь-джойстик и прыжок —
@@ -116,7 +116,7 @@ export function detectCandidates(c: ErrorContext): Hint[] {
         code: 'fist-partial',
         hand: 'right',
         landmarks: notCurled.flatMap((i) => FINGER_POINTS[i]),
-        text: `Чтобы прыгнуть, сожми кулак полностью — не согнут${notCurled.length > 1 ? 'ы' : ''}: ${fingersList(notCurled)}`,
+        text: s.fistPartial(notCurled.map((i) => s.fingers[i])),
       })
     }
 
@@ -125,7 +125,7 @@ export function detectCandidates(c: ErrorContext): Hint[] {
       out.push({
         code: 'palm-not-armed',
         hand: 'right',
-        text: 'Заведи красную точку — свою правую ладонь — в жёлтый центр джойстика справа внизу. Тогда герой пойдёт',
+        text: s.palmNotArmed,
       })
     }
   }
@@ -217,19 +217,5 @@ export class HintFilter {
   }
 }
 
-/** Короткие советы для разбора ошибок на экране итогов. */
-export const ERROR_ADVICE: Record<HintCode, { title: string; tip: string }> = {
-  'camera-blocked': { title: 'Камера не видит', tip: 'Открой шторку камеры и проверь, что её не заняла другая программа.' },
-  'camera-lost': { title: 'Камера отключалась', tip: 'Проверь, что камеру не выключает кнопка на ноутбуке и её не заняла другая программа.' },
-  'fist-partial': { title: 'Неполный кулак', tip: 'Сжимай все четыре пальца разом — как будто хватаешь ручку.' },
-  'hand-edge': { title: 'Рука у края кадра', tip: 'Держи руки ближе к груди, в центре кадра.' },
-  'palm-not-armed': { title: 'Ладонь не в круге', tip: 'Сначала заведи красную точку — свою ладонь — в жёлтый центр джойстика справа внизу.' },
-  'wrong-hand': { title: 'Не та рука', tip: 'Правая — ходьба и прыжок, левая — поворот мира.' },
-  'no-hands': { title: 'Руки вне кадра', tip: 'Держи правую ладонь низко справа, в круге джойстика.' },
-  'no-face': { title: 'Лицо вне кадра', tip: 'Сядь напротив камеры, чтобы работал эффект окна.' },
-  'too-close': { title: 'Слишком близко', tip: 'Лучшее расстояние — 50–70 см от экрана.' },
-  'too-far': { title: 'Слишком далеко', tip: 'Лучшее расстояние — 50–70 см от экрана.' },
-  'head-turned': { title: 'Голова повёрнута', tip: 'Смотри на экран прямо — двигай головой, а не поворачивай её.' },
-  dark: { title: 'Мало света', tip: 'Свет должен падать на лицо и руки, а не из-за спины.' },
-  'hand-turned': { title: 'Левая рука пропала', tip: 'Держи кулак костяшками к камере — ребром руку не видно.' },
-}
+/** Короткие советы для разбора ошибок на экране итогов (тексты в src/i18n.ts). */
+export const errorAdvice = (code: HintCode) => t().advice[code]

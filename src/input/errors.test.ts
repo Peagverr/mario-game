@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HandState, Hint, HintCode } from '../shared/controlState'
+import { useLang } from '../i18n'
 import { detectCandidates, HintFilter, type ErrorContext } from './errors'
 
 /** Раскрытая правая ладонь посреди кадра — ни одна точка не у края. */
@@ -55,9 +56,12 @@ describe('подсказка «заведи ладонь в круг»', () => {
 
 describe('левая рука', () => {
   it('левая рука пропала посреди хвата кулаком — подсказка держать кулак к камере', () => {
-    const hints = detectCandidates({ ...base, leftLostWhileGrabMs: 600 })
-    const h = hints.find((x) => x.code === 'hand-turned')
-    expect(h?.text).toContain('кулак')
+    useLang.getState().setLang('ru')
+    const ru = detectCandidates({ ...base, leftLostWhileGrabMs: 600 }).find((x) => x.code === 'hand-turned')
+    expect(ru?.text).toContain('кулак')
+    useLang.getState().setLang('en')
+    const en = detectCandidates({ ...base, leftLostWhileGrabMs: 600 }).find((x) => x.code === 'hand-turned')
+    expect(en?.text).toContain('fist')
   })
 
   it('пальцы почти сомкнуты — подсказки «сведи плотнее» нет', () => {

@@ -352,3 +352,17 @@ body {
 .holo-rec__big { font: 800 40px var(--font-head); }
 .holo-rec__big.is-rec { color: var(--coral); }
 .hud__pill--grab { white-space: nowrap; font: 700 16px var(--font-head); background: var(--teal); color: #fff; animation: pop-in 0.25s ease-out; }
+
+/* Переключатель языка на стартовом экране. */
+.card--hero { position: relative; }
+.card--hero .eyebrow { padding-right: 96px; }
+.lang-switch {
+  position: absolute; top: 20px; right: 22px;
+  display: flex; border: 2px solid var(--ink); border-radius: 999px; overflow: hidden;
+}
+.lang-switch button {
+  font: 700 13px var(--font-head); color: var(--ink-soft);
+  background: var(--paper); border: 0; padding: 6px 12px; cursor: pointer;
+}
+.lang-switch button + button { border-left: 2px solid var(--ink); }
+.lang-switch button.is-on { color: var(--ink); background: var(--star); }

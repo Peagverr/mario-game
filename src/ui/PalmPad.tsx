@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { runtime } from '../game/runtime'
+import { t } from '../i18n'
 import { control } from '../shared/controlState'
 
 /**
@@ -12,8 +13,6 @@ import { control } from '../shared/controlState'
  */
 
 const COLORS = { ink: '#1d2340', paper: 'rgba(255,253,248,0.82)', coral: '#ff5a5f', wait: '#ffd23f', ready: '#9be15d', cream: '#fff7ea' }
-/** Секторы: 0 вправо, 1 вперёд, 2 влево, 3 назад. */
-const WALK = ['Иду вправо', 'Иду вперёд', 'Иду влево', 'Иду назад']
 
 type Caption = { text: string; tone: 'wait' | 'ok' | 'go' }
 
@@ -21,11 +20,13 @@ function caption(): Caption {
   const j = control.joystick
   const r = control.hands.right
   // Коротко — не шире круга: полная инструкция и так в подсказке «режима ошибки».
-  if (!r) return { text: 'Подними ладонь', tone: 'wait' }
-  if (r.fist) return { text: 'Прыжок', tone: 'go' }
-  if (!j.armed) return { text: 'Ладонь в центр', tone: 'wait' }
-  if (runtime.moveLocked) return { text: 'Верни в центр', tone: 'wait' }
-  return j.sector >= 0 ? { text: WALK[j.sector], tone: 'go' } : { text: 'Стоп', tone: 'ok' }
+  const s = t().pad
+  if (!r) return { text: s.raise, tone: 'wait' }
+  if (r.fist) return { text: s.jump, tone: 'go' }
+  if (!j.armed) return { text: s.center, tone: 'wait' }
+  if (runtime.moveLocked) return { text: s.back, tone: 'wait' }
+  // Секторы: 0 вправо, 1 вперёд, 2 влево, 3 назад.
+  return j.sector >= 0 ? { text: s.walk[j.sector], tone: 'go' } : { text: s.stop, tone: 'ok' }
 }
 
 function draw(ctx: CanvasRenderingContext2D, size: number, t: number) {

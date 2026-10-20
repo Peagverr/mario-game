@@ -1,0 +1,13 @@
+{
+  "name": "okno-voice-en",
+  "private": true,
+  "type": "module",
+  "description": "English voice for Okno: Kokoro-82M (local TTS) -> public/voice/en/<id>.mp3",
+  "scripts": {
+    "make": "node make.mjs",
+    "check": "node check.mjs"
+  },
+  "dependencies": {
+    "kokoro-js": "1.2.1"
+  }
+}

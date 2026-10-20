@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody } from '@react-three/rapier'
 import { useEffect, useMemo, useRef } from 'react'
 import { Vector3 } from 'three'
+import { useT } from '../../../i18n'
 import { useGame } from '../../../shared/gameStore'
 import { bestRecord } from '../../../ui/leaderboard'
 import { Player } from '../../Player'
@@ -29,9 +30,11 @@ const SLOTS: [number, number, number][] = [
   [0, 0, -4.2],
   [5.2, 0, -3.6],
 ]
-const SLOT_TITLES = ['Острова', 'Загляни', 'Поверни мир']
+/** Какой уровень ждёт в каком слоте (пока уровня нет — табличка «скоро» с его названием). */
+const SLOT_LEVELS = ['level1', 'level2', 'level3'] as const
 
 export function Lobby() {
+  const levels = useT().levels
   // В лобби камера шире, чтобы были видны все порталы с табличками.
   useEffect(() => {
     runtime.viewScale = 1.45
@@ -42,7 +45,7 @@ export function Lobby() {
       <Platforms platforms={PLATFORMS} visual={false} />
       <LobbyWorld />
       {SLOTS.map((pos, i) => (
-        <Portal key={i} position={pos} level={LEVELS[i]} placeholder={SLOT_TITLES[i]} />
+        <Portal key={i} position={pos} level={LEVELS[i]} placeholder={levels[SLOT_LEVELS[i]].title} />
       ))}
       <Player spawn={[0, 1.2, 1]} killY={-10} />
       {/* Голограмма-подсказка обучения: показывает жест рядом с героем (что показать — решает Tutorial). */}
@@ -55,6 +58,7 @@ function Portal({ position, level, placeholder }: { position: [number, number, n
   const color = level?.color ?? '#b9bfd3'
   const best = useMemo(() => (level ? bestRecord(level.id) : undefined), [level])
   const sign = useRef<HTMLDivElement>(null)
+  const tr = useT()
   // Таблички читаются, только когда порталы видно спереди: повернул мир боком — они налезали бы друг на друга.
   useFrame(() => {
     const el = sign.current
@@ -88,11 +92,11 @@ function Portal({ position, level, placeholder }: { position: [number, number, n
       )}
       <Html center position={[0, 4.7, 0.3]} distanceFactor={42} zIndexRange={[10, 0]}>
         <div ref={sign} className={`portal-sign ${level ? '' : 'is-locked'}`}>
-          <b>{level?.title ?? placeholder}</b>
-          <span>{level ? level.feature : 'скоро'}</span>
+          <b>{level ? tr.levels[level.id].title : placeholder}</b>
+          <span>{level ? tr.levels[level.id].feature : tr.lobby.soon}</span>
           {best && (
             <span className="portal-sign__best">
-              рекорд {best.score} · ★{best.stars}
+              {tr.lobby.best(best.score)} · ★{best.stars}
             </span>
           )}
         </div>
