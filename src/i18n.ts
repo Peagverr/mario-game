@@ -144,12 +144,13 @@ const en = {
     poseNoArms: 'pose: no shoulders',
     pose: (left: boolean, right: boolean) => `pose: L${left ? '✓' : '-'} R${right ? '✓' : '-'}`,
   },
+  /** Подпись под большим джойстиком: не шире круга (160 px), поэтому коротко. */
   pad: {
-    walk: ['Walking right', 'Walking forward', 'Walking left', 'Walking back'],
-    raise: 'Raise your palm',
+    walk: ['Walk right', 'Walk forward', 'Walk left', 'Walk back'],
+    raise: 'Raise palm',
     jump: 'Jump',
-    center: 'Palm to the center',
-    back: 'Back to the center',
+    center: 'To the center',
+    back: 'Center again',
     stop: 'Stop',
   },
   lost: {
